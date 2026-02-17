@@ -1,0 +1,119 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# PyTorch Lightning logs
+lightning_logs/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+
+# =============================================================================
+# Data files - track structure, ignore large files by extension
+# =============================================================================
+
+# Large data files (by extension)
+*.csv
+*.tsv
+*.parquet
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.feather
+*.arrow
+*.xlsx
+*.rds
+*.json
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+checkpoints/
+**/checkpoints/
+
+# Compressed archives (often contain data)
+*.tar.gz
+*.tar
+*.zip
+*.gz
+
+# Keep directory structure and metadata
+!**/.gitkeep
+!**/README.md
+!**/*.yaml
+!**/*.yml
+
+# =============================================================================
+# Caches
+# =============================================================================
+cache/
+.cache/
+.embeddings_cache/
+**/.embeddings_cache/
+
+# =============================================================================
+# Results and outputs (regenerable)
+# =============================================================================
+results/
+reports/
+**/results/
+**/figures/
+
+# =============================================================================
+# Local/personal files
+# =============================================================================
+
+# Planning docs (local)
+PLAN_*.md
+*_PLAN.md
+
+# APOBEC data directory (large files) - keep CLAUDE.md
+data/apobec/
+!data/apobec/CLAUDE.md
+!data/apobec/**/.gitkeep
