@@ -26,6 +26,7 @@ MERGED_HEADER_SHEETS = {
     "T3-APOBECs Correlations",
     "T4-Leukocytes Editing Rates",
     "T5 -TCGA Survival",
+    "Supp TX All Non AG MM Sites ",
 }
 
 # Sheets with simple single-row headers
@@ -34,7 +35,6 @@ SIMPLE_HEADER_SHEETS = {
     "Supp. T1 CADD Stats",
     "Supp T2 Non Human Summary stats",
     "Supp T3 Structures",
-    "Supp TX All Non AG MM Sites ",
     "Supp TX Bases Editors Diff. ",
     "Supp TX Viral Editing",
     "Supp TX Non-Human Sample List",

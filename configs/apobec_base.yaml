@@ -1,0 +1,101 @@
+# APOBEC C-to-U editing prediction - base experiment config
+# Used by experiments/apobec/train_editrna.py
+# Override with CLI flags: --epochs 100 --encoder mock --batch_size 8
+
+# ---- Experiment identity ----
+experiment:
+  name: "editrna_a3a_v1"
+  description: "EditRNA-A3A with 11-task multi-task learning"
+
+# ---- Data ----
+data:
+  labels_csv: "data/processed/editing_sites_labels.csv"
+  splits_csv: "data/processed/splits.csv"
+  hard_negatives_csv: "data/processed/hard_negatives.csv"
+  negatives_csv: "data/processed/advisor/negative_controls_ct.csv"
+  combined_csv: "data/processed/advisor/positive_negative_combined.csv"
+  sequences_json: ""  # path to {site_id: sequence} JSON when available
+  window_size: 100  # nucleotides on each side -> 201nt total
+
+# ---- Model architecture ----
+model:
+  # Primary encoder
+  encoder: "rnafm"  # "rnafm" (640-dim), "utrlm" (128-dim), "mock" (testing)
+  d_model: 640
+  finetune_last_n: 0  # 0 = frozen encoder, >0 = fine-tune last N layers
+
+  # Edit embedding
+  d_edit: 256
+  edit_n_heads: 8
+
+  # Fusion
+  d_fused: 512
+  fusion_dropout: 0.2
+
+  # Multi-modal (disabled by default)
+  use_dual_encoder: false
+  use_gnn: false
+  use_contact_vit: false
+  use_structure_delta: true
+
+  # Prediction heads
+  head_dropout: 0.2
+
+# ---- Loss ----
+loss:
+  focal_gamma: 2.0
+  focal_alpha_binary: 0.75  # weight for positive class in binary editing
+  focal_alpha_conservation: 0.85  # weight for conserved class (minority)
+  # Task weights: learned via uncertainty weighting (Kendall et al. 2018)
+
+# ---- Multi-task tiers ----
+# All tasks are always active; masking handles missing labels.
+# Tier weights are part of the uncertainty-weighted loss (learned).
+tasks:
+  primary:
+    - binary      # BCE with focal loss
+    - rate        # MSE on log2(max_rate + 0.01)
+    - enzyme      # 4-class CE (A3A, A3G, Both, Neither), mask 72 Unknown
+  secondary:
+    - structure   # 4-class CE (InLoop, dsRNA, ssRNA/Bulge, OpenssRNA)
+    - tissue_spec # 5-class CE (Blood, Ubiq, Testis, NonSpec, Intestine)
+    - n_tissues   # MSE on log2(n_tissues_edited)
+  tertiary:
+    - function    # 3-class CE (syn, nonsyn, stopgain), mask 313 non-CDS
+    - conservation  # BCE with focal loss (95 conserved vs 541 not)
+    - cancer      # BCE (252 yes vs 384 no)
+  auxiliary:
+    - tissue_matrix  # MSE on 54-tissue rate vector, NaN-masked
+    - hek293      # MSE on HEK293 rate, available for 334/636
+
+# ---- Training ----
+training:
+  epochs: 50
+  batch_size: 16
+  learning_rate: 1.0e-4
+  encoder_lr_factor: 0.1  # encoder LR = learning_rate * factor
+  weight_decay: 1.0e-5
+  grad_accumulation_steps: 2  # effective batch = 32
+  max_grad_norm: 1.0
+  lr_scheduler: "cosine_warm"  # "plateau" or "cosine_warm"
+  warmup_epochs: 3
+  seed: 42
+  num_workers: 0
+
+# ---- Early stopping ----
+early_stopping:
+  patience: 15
+  min_delta: 1.0e-4
+  primary_metric: "auroc"  # monitor this for model selection
+
+# ---- Evaluation ----
+evaluation:
+  eval_every: 1  # evaluate every N epochs
+  metrics:
+    - auroc
+    - auprc
+    - f1
+    - precision
+    - recall
+    - accuracy
+    - rate_spearman

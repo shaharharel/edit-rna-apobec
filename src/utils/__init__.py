@@ -38,6 +38,14 @@ from .metrics import (
     ChemistryMetrics,
     print_metrics_summary
 )
+from .apobec_eval import (
+    binary_classification_metrics,
+    evaluate_multitask,
+    analyze_edit_embeddings,
+    permutation_importance,
+    analyze_misclassifications,
+    compare_models,
+)
 
 __all__ = [
     'setup_logger',
@@ -70,4 +78,11 @@ __all__ = [
     'RankingMetrics',
     'ChemistryMetrics',
     'print_metrics_summary',
+    # APOBEC evaluation
+    'binary_classification_metrics',
+    'evaluate_multitask',
+    'analyze_edit_embeddings',
+    'permutation_importance',
+    'analyze_misclassifications',
+    'compare_models',
 ]

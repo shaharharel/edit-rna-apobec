@@ -1,0 +1,8 @@
+Manual download needed for: Sharma et al. 2015 - APOBEC3A RNA editing in monocytes (Nat Commun)
+DOI: https://doi.org/10.1038/ncomms7881
+
+Please download supplementary data files and place them in this directory.
+Expected files:
+  - sharma_2015_supp_data1.xlsx
+  - sharma_2015_supp_data2.xlsx
+  - sharma_2015_supp_data3.xlsx

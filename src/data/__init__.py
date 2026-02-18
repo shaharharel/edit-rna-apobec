@@ -21,12 +21,42 @@ from .sequence_utils import (
 from .dataset import RNAPairDataset
 from .graph_cache import GraphCache
 from .editing_sites import EditingSiteDataset, EditingSite, load_gtex_tissue_rates
+from .rna_structure import (
+    RNAStructure,
+    predict_structure,
+    batch_predict_structures,
+    compute_structural_features,
+    extract_sequence_context,
+)
+from .apobec_dataset import (
+    APOBECDataset,
+    APOBECDatasetBuilder,
+    APOBECDataConfig,
+    APOBECSiteSample,
+    apobec_collate_fn,
+    create_apobec_dataloaders,
+    split_dataset,
+)
 
 __all__ = [
+    # APOBEC ML dataset
+    'APOBECDataset',
+    'APOBECDatasetBuilder',
+    'APOBECDataConfig',
+    'APOBECSiteSample',
+    'apobec_collate_fn',
+    'create_apobec_dataloaders',
+    'split_dataset',
     # APOBEC-specific
     'EditingSiteDataset',
     'EditingSite',
     'load_gtex_tissue_rates',
+    # RNA structure
+    'RNAStructure',
+    'predict_structure',
+    'batch_predict_structures',
+    'compute_structural_features',
+    'extract_sequence_context',
     # General RNA datasets
     'RNAPairDataset',
     'GraphCache',

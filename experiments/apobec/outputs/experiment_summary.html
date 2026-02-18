@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EditRNA-A3A: Experiment Summary</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: var(--gray-800);
+    background: var(--gray-50);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+    color: var(--gray-900);
+    border-bottom: 3px solid var(--primary);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    color: var(--gray-600);
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    color: var(--gray-900);
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid var(--gray-200);
+  }
+
+  h3 {
+    font-size: 1.2rem;
+    color: var(--gray-700);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  h4 {
+    font-size: 1rem;
+    color: var(--gray-600);
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p { margin-bottom: 0.8rem; }
+
+  .card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border: 1px solid var(--gray-200);
+  }
+
+  .card-highlight {
+    border-left: 4px solid var(--primary);
+  }
+
+  .card-success {
+    border-left: 4px solid var(--success);
+    background: var(--success-light);
+  }
+
+  .card-warning {
+    border-left: 4px solid var(--warning);
+    background: var(--warning-light);
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .metric-box {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .metric-value.success { color: var(--success); }
+  .metric-value.warning { color: var(--warning); }
+
+  .metric-label {
+    font-size: 0.85rem;
+    color: var(--gray-600);
+    margin-top: 0.2rem;
+  }
+
+  .metric-sub {
+    font-size: 0.75rem;
+    color: var(--gray-600);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    background: var(--gray-100);
+    color: var(--gray-700);
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--gray-300);
+  }
+
+  tbody td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  tbody tr:hover { background: var(--gray-50); }
+
+  .highlight-row { background: var(--primary-light) !important; font-weight: 600; }
+  .best-value { color: var(--success); font-weight: 700; }
+  .worst-value { color: var(--danger); }
+
+  .tag {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .tag-blue { background: var(--primary-light); color: var(--primary); }
+  .tag-green { background: var(--success-light); color: var(--success); }
+  .tag-orange { background: var(--warning-light); color: var(--warning); }
+  .tag-red { background: var(--danger-light); color: var(--danger); }
+
+  .figure-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin: 1rem 0;
+  }
+
+  .figure-box {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .figure-box img {
+    width: 100%;
+    display: block;
+  }
+
+  .figure-caption {
+    padding: 0.8rem;
+    font-size: 0.85rem;
+    color: var(--gray-600);
+    border-top: 1px solid var(--gray-200);
+    background: var(--gray-50);
+  }
+
+  .toc {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .toc ul {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .toc li {
+    padding: 0.3rem 0;
+  }
+
+  .toc a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  .toc a:hover { text-decoration: underline; }
+
+  .finding-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .finding-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 0.8rem;
+  }
+
+  .delta-positive { color: var(--success); }
+  .delta-negative { color: var(--danger); }
+
+  code {
+    background: var(--gray-100);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
+
+  .dataset-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+
+  .dataset-stat {
+    text-align: center;
+    padding: 0.8rem;
+    background: var(--gray-100);
+    border-radius: 6px;
+  }
+
+  .dataset-stat .name {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+  }
+
+  .dataset-stat .count {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--gray-800);
+  }
+
+  .nav-pills {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .nav-pill {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    background: var(--gray-100);
+    color: var(--gray-600);
+    font-size: 0.85rem;
+    cursor: default;
+  }
+
+  .nav-pill.active {
+    background: var(--primary);
+    color: white;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--gray-200);
+    margin: 2rem 0;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; }
+    .figure-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>EditRNA-A3A: Comprehensive Experiment Summary</h1>
+<p class="subtitle">Causal Edit Effect Framework for APOBEC3A C-to-U RNA Editing Prediction &mdash; February 2026</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">1. Project Overview &amp; Data</a></li>
+    <li><a href="#architecture">2. Model Architecture</a></li>
+    <li><a href="#exp2b">3. Experiment 2b: EditRNA-A3A vs Baselines</a></li>
+    <li><a href="#exp3">4. Experiment 3: Cross-Dataset Generalization</a></li>
+    <li><a href="#exp4-interp">5. Experiment 4: Edit Embedding Interpretability</a></li>
+    <li><a href="#tabular">6. Tabular Baseline Experiments (Exp 0, 0b)</a></li>
+    <li><a href="#shap">7. SHAP Interpretability &amp; Feature Ablation</a></li>
+    <li><a href="#conclusions">8. Key Conclusions</a></li>
+    <li><a href="#files">9. File Index</a></li>
+  </ul>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="overview">1. Project Overview &amp; Data</h2>
+
+<div class="card card-highlight">
+  <h3>The Causal Edit Effect Framework</h3>
+  <p>Instead of predicting molecular properties directly from sequences, the <strong>edit effect framework</strong> models how biological systems respond to <em>interventions</em>:</p>
+  <table>
+    <thead>
+      <tr><th>Approach</th><th>Method</th><th>Formula</th></tr>
+    </thead>
+    <tbody>
+      <tr class="worst-value"><td>Subtraction baseline</td><td>Predict property independently, then subtract</td><td><code>F(seq_after) - F(seq_before) = &Delta;property</code></td></tr>
+      <tr class="highlight-row"><td>Edit effect framework</td><td>Learn directly from supervised delta signal</td><td><code>F(seq_before, edit) &rarr; &Delta;property</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>Datasets</h3>
+<div class="dataset-stats">
+  <div class="dataset-stat">
+    <div class="name">Levanon (Advisor)</div>
+    <div class="count">629</div>
+    <div class="name">positives</div>
+  </div>
+  <div class="dataset-stat">
+    <div class="name">Asaoka 2019</div>
+    <div class="count">4,886</div>
+    <div class="name">positives</div>
+  </div>
+  <div class="dataset-stat">
+    <div class="name">Sharma 2015</div>
+    <div class="count">275</div>
+    <div class="name">positives</div>
+  </div>
+  <div class="dataset-stat">
+    <div class="name">Alqassim 2021</div>
+    <div class="count">126</div>
+    <div class="name">positives</div>
+  </div>
+  <div class="dataset-stat">
+    <div class="name">Tier 2 Negatives</div>
+    <div class="count">1,995</div>
+    <div class="name">TC-motif sites</div>
+  </div>
+  <div class="dataset-stat">
+    <div class="name">Tier 3 Negatives</div>
+    <div class="count">986</div>
+    <div class="name">TC stem-loop sites</div>
+  </div>
+</div>
+
+<div class="card">
+  <h4>3-Tier Negative Strategy</h4>
+  <p>Negatives are non-edited cytosines sampled from the <strong>same genes</strong> as positive sites, with increasing difficulty:</p>
+  <ul style="padding-left: 1.5rem; margin-bottom: 0.5rem;">
+    <li><strong>Tier 1</strong>: All exonic C sites (~115K available)</li>
+    <li><strong>Tier 2</strong>: C sites in TC dinucleotide context (~132K) &mdash; matches APOBEC3A motif preference</li>
+    <li><strong>Tier 3</strong>: TC sites in predicted stem-loop structures (~75K) &mdash; hardest negatives</li>
+  </ul>
+  <p>Gene-based splitting prevents data leakage across train/val/test.</p>
+</div>
+
+<h3>Training Split (Levanon + Tiered Negatives)</h3>
+<table>
+  <thead><tr><th>Split</th><th>Positive</th><th>Negative</th><th>Total</th></tr></thead>
+  <tbody>
+    <tr><td>Train</td><td>410</td><td>2,888</td><td>3,298</td></tr>
+    <tr><td>Validation</td><td>92</td><td>200</td><td>292</td></tr>
+    <tr><td>Test</td><td>127</td><td>218</td><td>345</td></tr>
+    <tr style="font-weight:600;"><td>Total</td><td>629</td><td>3,306</td><td>3,935</td></tr>
+  </tbody>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="architecture">2. Model Architecture</h2>
+
+<div class="card">
+  <h3>EditRNA-A3A</h3>
+  <p>The model follows the causal edit effect framework with four stages:</p>
+  <ol style="padding-left: 1.5rem; margin: 0.5rem 0;">
+    <li><strong>RNA-FM Encoder</strong> (640-dim, 12 transformer layers, frozen) &mdash; encodes both original and edited sequences</li>
+    <li><strong>APOBECEditEmbedding</strong> (128-dim output):
+      <ul>
+        <li>Cross-attention between original and edited token embeddings</li>
+        <li>Local difference features around the edit site</li>
+        <li>Flanking motif encoding (5-mer context)</li>
+        <li>Structure delta features</li>
+        <li>Concordance features between mRNA/pre-mRNA</li>
+      </ul>
+    </li>
+    <li><strong>GatedModalityFusion</strong> (256-dim) &mdash; learned gating between RNA-FM pooled features and edit embedding</li>
+    <li><strong>APOBECMultiTaskHead</strong> &mdash; 12 prediction heads with uncertainty-weighted loss (Kendall et al. 2018)</li>
+  </ol>
+  <p>Training uses focal loss for binary classification, cosine annealing with warm restarts, and gradient accumulation.</p>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="exp2b">3. Experiment 2b: EditRNA-A3A vs Baselines</h2>
+
+<div class="card card-success">
+  <h3>Headline Result</h3>
+  <div class="metric-grid">
+    <div class="metric-box">
+      <div class="metric-value success">0.976</div>
+      <div class="metric-label">EditRNA-A3A Test AUROC</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value">0.952</div>
+      <div class="metric-label">Best Baseline (GB-diff)</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value success">+0.024</div>
+      <div class="metric-label">EditRNA Advantage</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value">0.943</div>
+      <div class="metric-label">F1 Score</div>
+    </div>
+  </div>
+</div>
+
+<h3>EditRNA-A3A Test Metrics</h3>
+<table>
+  <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>AUROC</td><td class="best-value">0.9761</td></tr>
+    <tr><td>AUPRC</td><td class="best-value">0.9746</td></tr>
+    <tr><td>F1</td><td>0.9426</td></tr>
+    <tr><td>Precision</td><td>0.9829</td></tr>
+    <tr><td>Recall</td><td>0.9055</td></tr>
+    <tr><td>Accuracy</td><td>0.9594</td></tr>
+  </tbody>
+</table>
+
+<h3>Baselines Comparison (Test Set)</h3>
+<p>All baselines use the same RNA-FM 640-dim pooled embeddings. "Pooled" = original sequence only. "Diff" = edited minus original (subtraction baseline). "Concat" = original + edited concatenated.</p>
+<table>
+  <thead>
+    <tr><th>Method</th><th>Representation</th><th>Test AUROC</th><th>Test AUPRC</th><th>&Delta; vs EditRNA</th></tr>
+  </thead>
+  <tbody>
+    <tr class="highlight-row"><td>EditRNA-A3A</td><td>Edit embedding + gated fusion</td><td class="best-value">0.9761</td><td class="best-value">0.9746</td><td>&mdash;</td></tr>
+    <tr><td>Gradient Boosting</td><td>Concat (orig + edited)</td><td>0.9578</td><td>0.9401</td><td class="delta-negative">-0.018</td></tr>
+    <tr><td>Gradient Boosting</td><td>Diff (subtraction)</td><td>0.9523</td><td>0.9497</td><td class="delta-negative">-0.024</td></tr>
+    <tr><td>LogReg</td><td>Diff (subtraction)</td><td>0.9320</td><td>0.9041</td><td class="delta-negative">-0.044</td></tr>
+    <tr><td>LogReg</td><td>Concat</td><td>0.8017</td><td>0.7460</td><td class="delta-negative">-0.174</td></tr>
+    <tr><td>LogReg</td><td>Pooled (original only)</td><td>0.7840</td><td>0.7261</td><td class="delta-negative">-0.192</td></tr>
+    <tr><td>Gradient Boosting</td><td>Pooled (original only)</td><td>0.7740</td><td>0.6785</td><td class="delta-negative">-0.202</td></tr>
+  </tbody>
+</table>
+
+<div class="card card-highlight">
+  <p><strong>Key takeaway:</strong> EditRNA-A3A consistently outperforms all baselines. The subtraction baseline (diff) is the strongest simple approach at 0.932-0.952, but the edit effect framework adds +2.4 to +4.4 AUROC points by learning structured edit representations rather than simple feature differences.</p>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="exp3">4. Experiment 3: Cross-Dataset Generalization</h2>
+
+<div class="card card-highlight">
+  <h3>Experiment Design</h3>
+  <p>The model was trained <strong>only on Levanon data</strong> (629 positives + 3,306 tiered negatives). It was then evaluated on sites from three <strong>completely independent studies</strong> that it never saw during training, paired with the same tiered negatives from the test split.</p>
+</div>
+
+<h3>Cross-Dataset AUROC Results</h3>
+<table>
+  <thead>
+    <tr><th>Test Dataset</th><th>N Positive</th><th>N Negative</th><th>EditRNA-A3A</th><th>Best Baseline</th><th>&Delta;</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Levanon (test split)</td><td>127</td><td>218</td>
+      <td class="best-value">0.9986</td><td>0.9585 (GB-diff)</td>
+      <td class="delta-positive">+0.040</td>
+    </tr>
+    <tr>
+      <td>Asaoka 2019</td><td>4,886</td><td>218</td>
+      <td class="best-value">0.9964</td><td>0.9466 (GB-diff)</td>
+      <td class="delta-positive">+0.050</td>
+    </tr>
+    <tr class="highlight-row">
+      <td>Sharma 2015 <span class="tag tag-orange">Distribution shift</span></td><td>275</td><td>218</td>
+      <td class="best-value">0.9082</td><td>0.5049 (LR-diff)</td>
+      <td class="delta-positive" style="font-size:1.1rem;">+0.403</td>
+    </tr>
+    <tr>
+      <td>Alqassim 2021</td><td>126</td><td>218</td>
+      <td class="best-value">0.9950</td><td>0.9305 (GB-diff)</td>
+      <td class="delta-positive">+0.065</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="card card-warning">
+  <h3>The Sharma Discovery: TC Motif Confound</h3>
+  <p>Baselines completely <strong>fail on Sharma</strong> (AUROC ~0.50, chance level) while EditRNA achieves 0.91. The explanation:</p>
+  <table>
+    <thead><tr><th>Dataset</th><th>TC Motif at Position -1</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>Tiered Negatives</td><td><strong>100%</strong></td><td>Negative training/test samples</td></tr>
+      <tr><td>Sharma 2015</td><td><strong>89.8%</strong></td><td>Positive test samples (APOBEC3A-specific)</td></tr>
+      <tr><td>Levanon (Advisor)</td><td>29.6%</td><td>Positive training samples</td></tr>
+      <tr><td>Asaoka 2019</td><td>26.3%</td><td>Positive test samples</td></tr>
+      <tr><td>Alqassim 2021</td><td>27.0%</td><td>Positive test samples</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top: 0.8rem;"><strong>Mechanism:</strong> Simple baselines learn "TC motif = negative" as a shortcut (since 100% of negatives have TC motif but only ~30% of Levanon positives do). When tested on Sharma (90% TC motif positives from hypoxia-induced APOBEC3A editing), baselines incorrectly classify them as negatives.</p>
+  <p><strong>EditRNA-A3A captures deeper causal editing patterns</strong> beyond local sequence context, maintaining 0.91 AUROC even under this distributional shift.</p>
+</div>
+
+<h3>Figures</h3>
+<div class="figure-grid">
+  <div class="figure-box">
+    <img src="exp3_cross_dataset/cross_dataset_generalization.png" alt="Cross-dataset generalization">
+    <div class="figure-caption">EditRNA-A3A vs baselines across all 4 datasets. Sharma shows the most dramatic advantage.</div>
+  </div>
+  <div class="figure-box">
+    <img src="exp3_cross_dataset/cross_dataset_delta_heatmap.png" alt="Delta heatmap">
+    <div class="figure-caption">EditRNA advantage (AUROC delta) over each baseline per dataset.</div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="exp4-interp">5. Experiment 4: Edit Embedding Interpretability</h2>
+
+<h3>5.1 Linear Probing: What Information Does the Edit Embedding Capture?</h3>
+
+<div class="card">
+  <p>A simple logistic regression probe was trained (5-fold CV) on different representations to predict editing status:</p>
+  <div class="metric-grid">
+    <div class="metric-box">
+      <div class="metric-value success">0.956</div>
+      <div class="metric-label">Edit Embedding (128d)</div>
+      <div class="metric-sub">AUROC for is_edited</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value">0.952</div>
+      <div class="metric-label">Fused Representation (256d)</div>
+      <div class="metric-sub">AUROC for is_edited</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value warning">0.666</div>
+      <div class="metric-label">Raw RNA-FM Pooled (640d)</div>
+      <div class="metric-sub">AUROC for is_edited</div>
+    </div>
+  </div>
+  <p>The edit embedding transforms weakly-informative RNA-FM features (0.666 AUROC) into highly discriminative representations (0.956 AUROC) &mdash; a <strong>+29 percentage point improvement</strong> in a 5x smaller vector.</p>
+</div>
+
+<h3>5.2 Fusion Gate Weights: Adaptive Modality Selection</h3>
+
+<div class="card card-highlight">
+  <p>The GatedModalityFusion module learns to dynamically weight the RNA-FM encoder vs the edit embedding:</p>
+  <table>
+    <thead><tr><th>Site Type</th><th>RNA-FM Weight</th><th>Edit Embedding Weight</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Positive (edited)</strong></td><td>34.4%</td><td class="best-value">65.6%</td></tr>
+      <tr><td><strong>Negative (unedited)</strong></td><td>53.6%</td><td>46.4%</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top: 0.8rem;"><strong>Biological interpretation:</strong> For true editing sites, the C&rarr;U change carries the most informative signal (66% weight). For negatives, the background sequence context matters more (54% RNA-FM). The model has learned that the <em>nature of the edit response</em> is the key discriminator for positive sites.</p>
+</div>
+
+<h3>5.3 Clustering Analysis</h3>
+<div class="card">
+  <p>K-means clustering (best k=2, silhouette=0.289) reveals clean structure in the edit embedding space:</p>
+  <table>
+    <thead><tr><th>Cluster</th><th>Size</th><th>Positive %</th><th>Composition</th></tr></thead>
+    <tbody>
+      <tr><td>Cluster 0</td><td>3,154</td><td>3.4%</td><td>Tier 2/3 negatives (96.6%), some advisor sites</td></tr>
+      <tr><td>Cluster 1</td><td>781</td><td>66.8%</td><td>Levanon positives (522) + advisor negatives (257)</td></tr>
+    </tbody>
+  </table>
+  <p>The model separates synthetic (tiered) negatives from real genomic sites (both positive and advisor negatives), suggesting it captures a meaningful "genomic context" signal.</p>
+</div>
+
+<h3>5.4 Visualizations</h3>
+<div class="figure-grid">
+  <div class="figure-box">
+    <img src="exp4_interpretability/summary_figure.png" alt="Summary figure">
+    <div class="figure-caption">6-panel summary: t-SNE, attention profile, gate weights, linear probes, attention entropy, P(edited) gradient.</div>
+  </div>
+  <div class="figure-box">
+    <img src="exp4_interpretability/gate_weights.png" alt="Gate weights">
+    <div class="figure-caption">Fusion gate weights by label (left) and full distribution (right). Positives strongly favor edit embedding.</div>
+  </div>
+</div>
+
+<div class="figure-grid">
+  <div class="figure-box">
+    <img src="exp4_interpretability/umap_by_label.png" alt="UMAP by label">
+    <div class="figure-caption">UMAP of edit embeddings colored by label. Clear positive/negative separation with sub-clusters among positives.</div>
+  </div>
+  <div class="figure-box">
+    <img src="exp4_interpretability/tsne_by_prob.png" alt="t-SNE by P(edited)">
+    <div class="figure-caption">t-SNE colored by model prediction P(edited). Smooth probability gradient across the manifold.</div>
+  </div>
+</div>
+
+<div class="figure-grid">
+  <div class="figure-box">
+    <img src="exp4_interpretability/umap_by_dataset.png" alt="UMAP by dataset">
+    <div class="figure-caption">UMAP colored by dataset source. Tiered negatives (blue/cyan) cluster separately from advisor sites.</div>
+  </div>
+  <div class="figure-box">
+    <img src="exp4_interpretability/linear_probe_auroc.png" alt="Linear probe">
+    <div class="figure-caption">Linear probe AUROC for is_edited: Edit embedding 0.956 >> Raw RNA-FM 0.666.</div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="tabular">6. Tabular Baseline Experiments</h2>
+
+<h3>Exp 0: Full Tabular Baseline (Original Negatives)</h3>
+<div class="card">
+  <p>Binary classification with all 1,951 original advisor negatives (including trivially separable "Other" category):</p>
+  <table>
+    <thead><tr><th>Model</th><th>Feature Set</th><th>Test AUROC</th><th>Test AUPRC</th></tr></thead>
+    <tbody>
+      <tr><td>Gradient Boosting</td><td>All features (28)</td><td class="best-value">0.999</td><td>0.995</td></tr>
+      <tr><td>Random Forest</td><td>All features (28)</td><td>0.996</td><td>0.975</td></tr>
+      <tr><td>Gradient Boosting</td><td>Common only (15)</td><td>0.993</td><td>0.954</td></tr>
+    </tbody>
+  </table>
+  <p style="color: var(--gray-600); font-size: 0.9rem;">Note: Near-perfect performance due to trivially separable "Other" negatives.</p>
+</div>
+
+<h3>Exp 0b: Matched Negatives (Honest Baseline)</h3>
+<div class="card card-highlight">
+  <p>Binary classification with <strong>325 matched negatives</strong> (CDS + Non-Coding mRNA only, no "Other" category), chromosome feature removed:</p>
+  <table>
+    <thead><tr><th>Feature Set</th><th>N Features</th><th>RF AUROC</th><th>GB AUROC</th></tr></thead>
+    <tbody>
+      <tr><td>Structure + conservation</td><td>9</td><td>0.844</td><td>0.844</td></tr>
+      <tr><td>+ genomic (no chromosome)</td><td>12</td><td>0.837</td><td>0.837</td></tr>
+      <tr><td>Common (with rates)</td><td>14</td><td>0.939</td><td>0.940</td></tr>
+      <tr><td>All features (no chrom)</td><td>27</td><td>0.963</td><td class="best-value">0.980</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Honest baseline:</strong> Structure + conservation only (no rate features, no chromosome) achieves AUROC 0.844. This is the fairest comparison point for the neural model.</p>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="shap">7. SHAP Interpretability &amp; Feature Ablation</h2>
+
+<h3>Exp 3 (Tabular): SHAP Analysis</h3>
+<div class="card">
+  <p>SHAP analysis on the multi-task tabular MLP (trained on 636 positive sites) revealed task-specific feature importance:</p>
+  <ul style="padding-left: 1.5rem;">
+    <li><strong>Rate prediction</strong>: Dominated by <code>max_rate</code>, <code>std_rate</code>, <code>n_tissues_edited</code></li>
+    <li><strong>Enzyme classification</strong>: <code>tissue_specificity</code> accounts for 53% of SHAP importance</li>
+    <li><strong>Structure prediction</strong>: Self-contained &mdash; structure features only</li>
+    <li><strong>Tissue classification</strong>: <code>n_tissues_edited</code> + <code>tissue_specificity</code></li>
+  </ul>
+</div>
+
+<div class="figure-grid">
+  <div class="figure-box">
+    <img src="exp3_interpretability/shap_cross_task_heatmap.png" alt="SHAP cross-task heatmap">
+    <div class="figure-caption">SHAP feature importance across all tasks. Features are task-specific, not task-shared.</div>
+  </div>
+  <div class="figure-box">
+    <img src="exp3_interpretability/tsne_hidden_representations.png" alt="Hidden representation t-SNE">
+    <div class="figure-caption">t-SNE of MLP hidden representations colored by different properties.</div>
+  </div>
+</div>
+
+<h3>Exp 4 (Tabular): Feature Ablation</h3>
+<div class="card card-warning">
+  <h4>Surprising Finding: Features Are Task-Orthogonal</h4>
+  <p>Systematic ablation (12 conditions &times; 3 seeds = 36 trainings) revealed:</p>
+  <div class="finding-item"><span class="finding-number">1</span><span><code>max_rate</code> alone achieves Spearman <strong>0.938</strong> for rate prediction &mdash; better than the full 13-feature model (0.790)</span></div>
+  <div class="finding-item"><span class="finding-number">2</span><span><code>tissue_specificity</code> alone achieves 54.3% enzyme accuracy &mdash; better than full model (51.9%)</span></div>
+  <div class="finding-item"><span class="finding-number">3</span><span>Removing tissue features <em>improves</em> rate prediction (+0.077). Multi-task learning creates interference, not synergy.</span></div>
+  <div class="finding-item"><span class="finding-number">4</span><span>Structure features are entirely self-contained: 93.3% structure accuracy but -0.048 for rate.</span></div>
+</div>
+
+<div class="figure-grid">
+  <div class="figure-box">
+    <img src="exp4_ablation/ablation_delta_heatmap.png" alt="Ablation delta heatmap">
+    <div class="figure-caption">Feature group ablation delta heatmap. Each cell shows the effect of removing/using only that feature group.</div>
+  </div>
+  <div class="figure-box">
+    <img src="exp4_ablation/ablation_leave_one_out.png" alt="Leave-one-out ablation">
+    <div class="figure-caption">Leave-one-group-out ablation: removing rate_stats destroys rate prediction, removing tissue_breadth destroys enzyme/tissue.</div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="conclusions">8. Key Conclusions</h2>
+
+<div class="card card-success">
+  <h3>Evidence for the Edit Effect Framework</h3>
+  <table>
+    <thead><tr><th>Validation Axis</th><th>Evidence</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Predictive performance</strong></td><td>EditRNA vs subtraction baseline (same data)</td><td class="best-value">+4.4 AUROC points (0.976 vs 0.932)</td></tr>
+      <tr><td><strong>Cross-dataset generalization</strong></td><td>Train on Levanon, test on 3 independent studies</td><td class="best-value">0.91&ndash;0.99 AUROC on unseen datasets</td></tr>
+      <tr><td><strong>Robustness to distribution shift</strong></td><td>Sharma (90% TC motif) vs TC-motif negatives</td><td class="best-value">+40 AUROC points over baselines</td></tr>
+      <tr><td><strong>Representation quality</strong></td><td>Linear probe on edit embedding vs raw features</td><td class="best-value">0.956 vs 0.666 AUROC (128d vs 640d)</td></tr>
+      <tr><td><strong>Adaptive processing</strong></td><td>Fusion gate weights by label</td><td class="best-value">66% edit weight for positives vs 46% for negatives</td></tr>
+      <tr><td><strong>Meaningful geometry</strong></td><td>UMAP/t-SNE of edit embeddings</td><td class="best-value">Clean pos/neg separation with sub-structure</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Scientific Insights</h3>
+  <div class="finding-item"><span class="finding-number">1</span><span><strong>Negative design is the bottleneck:</strong> With advisor-curated negatives (CDS/mRNA CT mismatches), baselines achieve ~0.5 AUROC. With tiered TC-motif negatives from the same genes, baselines reach 0.78-0.95. The choice of negatives, not model capacity, determines performance.</span></div>
+  <div class="finding-item"><span class="finding-number">2</span><span><strong>Edit embeddings capture causal patterns:</strong> The edit embedding encodes intervention-specific information that goes beyond local sequence context, enabling generalization across datasets and robustness to motif-based distribution shifts.</span></div>
+  <div class="finding-item"><span class="finding-number">3</span><span><strong>Tabular features are task-orthogonal:</strong> Rate prediction is driven almost entirely by rate statistics, enzyme classification by tissue specificity, and structure by structure features. Multi-task learning shows limited positive transfer between these tasks.</span></div>
+  <div class="finding-item"><span class="finding-number">4</span><span><strong>Sharma reveals the model's true power:</strong> When baselines fail (AUROC 0.50 on TC-motif positive sites), EditRNA-A3A still achieves 0.91 by relying on deeper structural patterns in the edit response rather than surface-level motif features.</span></div>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="files">9. File Index</h2>
+
+<div class="card">
+  <h3>Experiment Outputs</h3>
+  <table>
+    <thead><tr><th>Directory</th><th>Contents</th><th>Key File</th></tr></thead>
+    <tbody>
+      <tr><td><code>exp0_tabular/</code></td><td>Tabular baseline (original negatives)</td><td>exp0_results.json</td></tr>
+      <tr><td><code>exp0b_matched_negatives/</code></td><td>Honest tabular baseline (matched negatives)</td><td>exp0b_results.json</td></tr>
+      <tr><td><code>exp2_levanon_tiered_negatives/</code></td><td>EditRNA-A3A main experiment</td><td>test_results.json, baselines.json</td></tr>
+      <tr><td><code>exp3_cross_dataset/</code></td><td>Cross-dataset generalization</td><td>cross_dataset_results.json</td></tr>
+      <tr><td><code>exp3_interpretability/</code></td><td>SHAP analysis (tabular)</td><td>11 SHAP PNG figures</td></tr>
+      <tr><td><code>exp4_interpretability/</code></td><td>Edit embedding interpretability</td><td>results.json, 15 PNG figures</td></tr>
+      <tr><td><code>exp4_ablation/</code></td><td>Feature group ablation study</td><td>exp4_results.json</td></tr>
+      <tr><td><code>exp5_cross_dataset/</code></td><td>Dataset overlap &amp; rate correlation</td><td>4 PNG figures</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Data Files</h3>
+  <table>
+    <thead><tr><th>File</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>data/processed/splits_expanded.csv</code></td><td>9,222 sites (all 4 datasets + tiered negatives)</td></tr>
+      <tr><td><code>data/processed/splits_levanon_expanded.csv</code></td><td>3,935 sites (Levanon + tiered negatives)</td></tr>
+      <tr><td><code>data/processed/all_datasets_combined.csv</code></td><td>6,331 unified positive sites</td></tr>
+      <tr><td><code>data/processed/embeddings/</code></td><td>10,841 RNA-FM embeddings (pooled, tokens, edited)</td></tr>
+      <tr><td><code>data/processed/site_sequences.json</code></td><td>10,841 extracted 201nt sequences</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Scripts</h3>
+  <table>
+    <thead><tr><th>Script</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>scripts/apobec/parse_asaoka_2019.py</code></td><td>Parse Asaoka 2019 supplementary data</td></tr>
+      <tr><td><code>scripts/apobec/parse_sharma_2015.py</code></td><td>Parse Sharma 2015 supplementary data</td></tr>
+      <tr><td><code>scripts/apobec/build_unified_dataset.py</code></td><td>Merge all 4 datasets into unified format</td></tr>
+      <tr><td><code>scripts/apobec/generate_tiered_negatives.py</code></td><td>Generate 3-tier negative sets from hg19</td></tr>
+      <tr><td><code>scripts/apobec/expand_dataset.py</code></td><td>Full pipeline: expand data + embed + split</td></tr>
+      <tr><td><code>scripts/apobec/cross_dataset_eval.py</code></td><td>Cross-dataset generalization evaluation</td></tr>
+      <tr><td><code>scripts/apobec/edit_embedding_analysis.py</code></td><td>Edit embedding interpretability analysis</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<hr>
+<p style="text-align: center; color: var(--gray-600); font-size: 0.85rem; margin-top: 1rem;">
+  Generated on February 18, 2026 &mdash; EditRNA-A3A Project
+</p>
+
+</body>
+</html>

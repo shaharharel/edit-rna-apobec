@@ -66,8 +66,12 @@ Thumbs.db
 *.feather
 *.arrow
 *.xlsx
+*.xls
 *.rds
 *.json
+*.fa
+*.fai
+*.fasta
 
 # Model weights and checkpoints
 *.pt
@@ -88,6 +92,7 @@ checkpoints/
 !**/README.md
 !**/*.yaml
 !**/*.yml
+!**/*.html
 
 # =============================================================================
 # Caches
@@ -112,6 +117,12 @@ reports/
 # Planning docs (local)
 PLAN_*.md
 *_PLAN.md
+
+# Local settings
+settings.json
+
+# Reference genomes (large, re-downloadable)
+data/raw/genomes/
 
 # APOBEC data directory (large files) - keep CLAUDE.md
 data/apobec/

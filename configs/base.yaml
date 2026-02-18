@@ -1,0 +1,48 @@
+# Base configuration for APOBEC3A RNA editing prediction
+# Override settings in modality-specific configs
+
+# ---- Paths ----
+paths:
+  project_root: "."
+  data_dir: "data"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  advisor_data: "data/processed/advisor"
+  published_data: "data/raw/published"
+  cache_dir: "cache"
+  output_dir: "outputs"
+  hg19_fasta: "data/raw/genomes/hg19.fa"
+
+# ---- Tools ----
+tools:
+  rnafold: "/opt/miniconda3/envs/vienna/bin/RNAfold"
+  vienna_bin: "/opt/miniconda3/envs/vienna/bin"
+  python: "/opt/miniconda3/envs/quris/bin/python"
+
+# ---- Sequence ----
+sequence:
+  flank_size: 100  # nucleotides on each side of edit site
+  max_seq_length: 201
+  alphabet: "ACGU"
+
+# ---- Structure ----
+structure:
+  temperature: 37.0
+  window_size: 201  # 100 + 1 + 100
+
+# ---- Data ----
+data:
+  advisor_excel: "C2TFinalSites.DB.xlsx"
+  n_sites: 637
+  editing_type: "C-to-U"
+  genome_build: "hg19"
+  min_coverage: 100
+  min_editing_rate: 0.0
+
+# ---- Splits ----
+splits:
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  seed: 42
+  strategy: "gene_aware"  # split by gene to avoid data leakage

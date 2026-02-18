@@ -1,0 +1,6 @@
+Manual download needed for: Pecori et al. 2019 - APOBEC editing sites review (IJMS)
+DOI: https://doi.org/10.3390/ijms20225621
+
+Please download supplementary data files and place them in this directory.
+Expected files:
+  - pecori_2019_table_s1.xlsx

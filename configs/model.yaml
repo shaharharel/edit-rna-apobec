@@ -1,0 +1,52 @@
+# Model configuration for APOBEC editing prediction
+
+# ---- Embedding ----
+embedding:
+  # RNA sequence encoder
+  encoder: "rna_fm"  # Options: rna_fm, rnabert, codonbert, nucleotide
+  encoder_dim: 640  # RNA-FM output dimension
+  freeze_encoder: true
+
+  # Edit embedding
+  edit_embedding_dim: 128
+  edit_type: "structured"  # Options: structured, positional, simple
+
+  # Structure embedding
+  use_structure: true
+  structure_dim: 64
+
+# ---- Predictor ----
+predictor:
+  type: "edit_effect"  # Options: edit_effect, film_delta, attention_delta, baseline_subtraction
+  hidden_dims: [256, 128]
+  dropout: 0.2
+  activation: "gelu"
+
+  # Multi-task heads
+  tasks:
+    - name: "editing_rate"
+      type: "regression"
+      weight: 1.0
+    - name: "tissue_specificity"
+      type: "classification"
+      n_classes: 3  # ubiquitous, tissue-specific, blood-specific
+      weight: 0.5
+
+# ---- Training ----
+training:
+  batch_size: 32
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  max_epochs: 100
+  patience: 15
+  scheduler: "cosine"
+  warmup_epochs: 5
+  gradient_clip: 1.0
+
+# ---- Evaluation ----
+evaluation:
+  metrics:
+    - pearson_r
+    - spearman_rho
+    - rmse
+    - auroc  # for classification tasks
