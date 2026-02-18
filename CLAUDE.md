@@ -111,79 +111,34 @@ tests/                     # Unit tests
 
 ## Setting Up on a New Machine
 
-After cloning the git repo, you need to restore the large data files that are excluded from git (embeddings, genomes, model checkpoints, processed CSVs, etc.).
+After cloning the git repo, you need to regenerate all processed data from the raw source files.
 
-### Step 1: Unpack data files
+### Step 1: Unpack raw data
 
-Two tar.gz archives contain all large files. Copy them to the project root directory and run:
-
-```bash
-# Unpack data directory (processed data, embeddings, genomes, published datasets, Excel)
-tar -xzf editrna_data.tar.gz
-
-# Unpack model checkpoints and experiment results (best_model.pt, result JSONs, numpy arrays)
-tar -xzf editrna_model_outputs.tar.gz
-```
-
-Both archives preserve the original directory structure and will extract into the correct locations (`data/`, `experiments/apobec/outputs/`, and `C2TFinalSites.DB.xlsx`).
-
-### Step 2: Verify the data
-
-After unpacking, confirm the key files exist:
+Copy `editrna_raw_data.tar.gz` (7.5MB) to the project root and unpack:
 
 ```bash
-# Genome reference (needed for sequence extraction)
-ls data/raw/genomes/hg19.fa
-
-# Pre-computed RNA-FM embeddings (needed for training/evaluation)
-ls data/processed/embeddings/rnafm_*.pt
-
-# Processed splits (needed for all experiments)
-ls data/processed/splits_levanon_expanded.csv
-ls data/processed/splits_expanded.csv
-
-# Best model checkpoints
-ls experiments/apobec/outputs/exp2_levanon_tiered_negatives/best_model.pt
+tar -xzf editrna_raw_data.tar.gz
 ```
 
-### Step 3: Set up the conda environment
+This extracts: `C2TFinalSites.DB.xlsx` and published dataset files into `data/raw/published/`.
+
+### Step 2: Download reference genome
+
+```bash
+mkdir -p data/raw/genomes && cd data/raw/genomes
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz && gunzip hg19.fa.gz
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz && gunzip refGene.txt.gz
+python -c "from pyfaidx import Fasta; Fasta('hg19.fa')"
+cd ../../..
+```
+
+### Step 3: Set up conda environment and regenerate data
 
 ```bash
 conda activate quris
 pip install -r requirements.txt
 ```
 
-### What each archive contains
-
-| Archive | Contents | Size (compressed) |
-|---------|----------|-------------------|
-| `editrna_data.tar.gz` | `data/` directory + `C2TFinalSites.DB.xlsx` — genomes, embeddings, processed CSVs, published datasets, tiered negatives, sequences | ~14GB uncompressed |
-| `editrna_model_outputs.tar.gz` | Model checkpoints (`.pt`), result JSONs, numpy arrays from `experiments/apobec/outputs/` | ~9GB uncompressed |
-
-### Regenerating data (if archives unavailable)
-
-If you don't have the archives, most data can be regenerated from scripts:
-
-```bash
-# 1. Download hg19 genome
-# Download from UCSC: https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
-# Place at: data/raw/genomes/hg19.fa
-
-# 2. Parse the source Excel file
-python scripts/apobec/parse_advisor_excel.py
-
-# 3. Extract sequences (requires hg19.fa)
-python scripts/apobec/extract_sequences_and_structures.py
-
-# 4. Generate tiered negatives
-python scripts/apobec/generate_tiered_negatives.py
-
-# 5. Build expanded dataset splits
-python scripts/apobec/expand_dataset.py
-
-# 6. Generate RNA-FM embeddings (requires GPU, ~30min)
-python scripts/apobec/generate_embeddings.py
-
-# 7. Generate structure cache
-python scripts/apobec/generate_structure_cache.py
-```
+Then run the full pipeline. See **`data_generation.md`** for the complete step-by-step
+guide with all commands, dependencies, and expected outputs.
