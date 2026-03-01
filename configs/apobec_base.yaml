@@ -1,5 +1,5 @@
 # APOBEC C-to-U editing prediction - base experiment config
-# Used by experiments/apobec/train_editrna.py
+# Used by experiments/apobec3a/train_editrna.py
 # Override with CLI flags: --epochs 100 --encoder mock --batch_size 8
 
 # ---- Experiment identity ----

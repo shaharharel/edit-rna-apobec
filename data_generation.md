@@ -71,6 +71,8 @@ These files cannot be generated — they must be obtained from the original sour
 | `data/raw/published/sharma_2015_supp_data.xls` | 3.2MB | Sharma et al. 2015, DOI: 10.1038/ncomms7881 |
 | `data/raw/published/alqassim_2021/alqassim_2021_supp_data1.xlsx` | 96KB | Alqassim et al. 2021, DOI: 10.1038/s42003-020-01620-x |
 | `data/raw/published/alqassim_2021/alqassim_2021_supp_data2.xlsx` | 80KB | Alqassim et al. 2021 (gene expression) |
+| `data/raw/published/baysal_2016/krnb-14-05-1184387-s001/` | 2.7MB | Baysal et al. 2016, DOI: 10.1080/15476286.2016.1184387 |
+| `data/raw/published/levanon/tissue_editing_rates.csv` | 640KB | Levanon/Advisor tissue editing rates (pre-extracted T1 sheet, 54 GTEx tissues) |
 
 ---
 
@@ -89,31 +91,35 @@ Parse each source file into standardized CSVs.
 
 ```bash
 # 1a. Parse advisor Excel (636 positive sites + supplementary tables)
-python scripts/apobec/parse_advisor_excel.py --excel C2TFinalSites.DB.xlsx
+python scripts/apobec3a/parse_advisor_excel.py --excel C2TFinalSites.DB.xlsx
 # Output: data/processed/advisor/*.csv (11 files)
 #         data/processed/advisor/unified_editing_sites.csv
 
 # 1b. Parse published datasets
-python scripts/apobec/parse_asaoka_2019.py
+python scripts/apobec3a/parse_asaoka_2019.py
 # Output: data/processed/published/asaoka_2019_editing_sites.csv (5,208 sites)
 
-python scripts/apobec/parse_sharma_2015.py
+python scripts/apobec3a/parse_sharma_2015.py
 # Output: data/processed/published/sharma_2015_editing_sites.csv (333 sites)
 
-python scripts/apobec/parse_alqassim_2021.py
+python scripts/apobec3a/parse_alqassim_2021.py
 # Output: data/processed/published/alqassim_2021_editing_sites.csv (209 sites)
+
+# 1e. Parse Baysal 2016 (requires pyliftover for GRCh38→hg19 coordinate conversion)
+python scripts/apobec3a/parse_baysal_2016.py
+# Output: data/processed/published/baysal_2016_editing_sites.csv (~4,200 sites)
 ```
 
 ### Stage 2: Extract Labels and Negative Controls
 
 ```bash
 # 2a. Extract multi-task labels from advisor data
-python scripts/apobec/extract_labels.py
+python scripts/apobec3a/extract_labels.py
 # Output: data/processed/editing_sites_labels.csv (636 sites, 30 label columns)
 #         data/processed/splits.csv (train/val/test by gene stratification)
 
 # 2b. Extract negative controls from non-AG mismatch sites
-python scripts/apobec/extract_negative_controls.py
+python scripts/apobec3a/extract_negative_controls.py
 # Output: data/processed/advisor/negative_controls_ct.csv (CT mismatches, positives removed)
 #         data/processed/advisor/negative_controls_filtered.csv (exonic only, ~325 sites)
 ```
@@ -123,7 +129,7 @@ python scripts/apobec/extract_negative_controls.py
 Combine all datasets into a single table with standardized columns.
 
 ```bash
-python scripts/apobec/build_unified_dataset.py
+python scripts/apobec3a/build_unified_dataset.py
 # Output: data/processed/all_datasets_combined.csv (all positive sites, deduplicated)
 ```
 
@@ -133,7 +139,7 @@ Extract 201nt RNA sequences (±100 flanking around edit site) from hg19 and
 predict secondary structures with RNAfold.
 
 ```bash
-python scripts/apobec/extract_sequences_and_structures.py \
+python scripts/apobec3a/extract_sequences_and_structures.py \
     --genome data/raw/genomes/hg19.fa \
     --negatives
 # Output: data/processed/sequences_and_structures.csv
@@ -146,7 +152,7 @@ Generate hard negative controls at three difficulty tiers from RefSeq exonic reg
 of genes that contain positive editing sites.
 
 ```bash
-python scripts/apobec/generate_tiered_negatives.py
+python scripts/apobec3a/generate_tiered_negatives.py
 # Output: data/processed/negatives_tier1.csv (~272K all exonic C sites)
 #         data/processed/negatives_tier2.csv (~132K TC-motif C sites)
 #         data/processed/negatives_tier3.csv (~75K TC in stem-loops)
@@ -161,7 +167,7 @@ Subsample tiered negatives, merge with positives, extract sequences for new site
 generate RNA-FM embeddings, and create train/val/test splits.
 
 ```bash
-python scripts/apobec/expand_dataset.py \
+python scripts/apobec3a/expand_dataset.py \
     --max-tier2-neg 2000 \
     --max-tier3-neg 1000 \
     --batch-size 16
@@ -180,11 +186,31 @@ python scripts/apobec/expand_dataset.py \
 embeddings separately (e.g., with a different encoder), use:
 
 ```bash
-python scripts/apobec/generate_embeddings.py \
+python scripts/apobec3a/generate_embeddings.py \
     --sequences_json data/processed/site_sequences.json \
     --include_edited \
     --encoder rnafm \
     --batch_size 32
+```
+
+### Stage 6b: Filter to APOBEC3A-Only Sites
+
+Create the A3A-filtered dataset used by all modern experiments. Removes non-A3A
+advisor sites (keeps only 120 of 636) and baysal_2016 (subset of asaoka_2019).
+
+```bash
+python scripts/apobec3a/filter_a3a_splits.py
+# Output: data/processed/splits_expanded_a3a.csv (~8,153 sites: 5,187 pos + 2,966 neg)
+```
+
+### Stage 6c: Download and Process ClinVar
+
+Download ClinVar variants and extract C>T (potential C-to-U editing) SNPs.
+
+```bash
+python scripts/apobec3a/download_clinvar.py
+# Output: data/raw/clinvar/clinvar_grch37.vcf.gz (~189MB download)
+#         data/processed/clinvar_c2u_variants.csv (~1.68M variants)
 ```
 
 ### Stage 7: Generate Structure Cache
@@ -193,7 +219,7 @@ Compute ViennaRNA 2D structure features (pairing probability, accessibility, ent
 for all sites. **Must be run in the `vienna` conda environment.**
 
 ```bash
-/opt/miniconda3/envs/vienna/bin/python scripts/apobec/generate_structure_cache.py
+/opt/miniconda3/envs/vienna/bin/python scripts/apobec3a/generate_structure_cache.py
 # Output: data/processed/embeddings/vienna_structure_cache.npz
 # Time: ~10-15 minutes
 ```
@@ -208,29 +234,36 @@ Copy-paste to run the entire pipeline:
 conda activate quris
 
 # Stage 1: Parse
-python scripts/apobec/parse_advisor_excel.py --excel C2TFinalSites.DB.xlsx
-python scripts/apobec/parse_asaoka_2019.py
-python scripts/apobec/parse_sharma_2015.py
-python scripts/apobec/parse_alqassim_2021.py
+python scripts/apobec3a/parse_advisor_excel.py --excel data/raw/C2TFinalSites.DB.xlsx
+python scripts/apobec3a/parse_asaoka_2019.py
+python scripts/apobec3a/parse_sharma_2015.py
+python scripts/apobec3a/parse_alqassim_2021.py
+python scripts/apobec3a/parse_baysal_2016.py
 
 # Stage 2: Labels + negatives
-python scripts/apobec/extract_labels.py
-python scripts/apobec/extract_negative_controls.py
+python scripts/apobec3a/extract_labels.py
+python scripts/apobec3a/extract_negative_controls.py
 
 # Stage 3: Unify
-python scripts/apobec/build_unified_dataset.py
+python scripts/apobec3a/build_unified_dataset.py
 
 # Stage 4: Sequences (requires hg19.fa)
-python scripts/apobec/extract_sequences_and_structures.py --genome data/raw/genomes/hg19.fa --negatives
+python scripts/apobec3a/extract_sequences_and_structures.py --genome data/raw/genomes/hg19.fa --negatives
 
 # Stage 5: Tiered negatives (requires hg19.fa + RNAfold)
-python scripts/apobec/generate_tiered_negatives.py
+python scripts/apobec3a/generate_tiered_negatives.py
 
 # Stage 6: Expand + embed (requires GPU for speed)
-python scripts/apobec/expand_dataset.py --max-tier2-neg 2000 --max-tier3-neg 1000
+python scripts/apobec3a/expand_dataset.py --max-tier2-neg 2000 --max-tier3-neg 1000
+
+# Stage 6b: Filter to A3A-only sites
+python scripts/apobec3a/filter_a3a_splits.py
+
+# Stage 6c: Download ClinVar
+python scripts/apobec3a/download_clinvar.py
 
 # Stage 7: Structure cache (vienna env)
-/opt/miniconda3/envs/vienna/bin/python scripts/apobec/generate_structure_cache.py
+/opt/miniconda3/envs/vienna/bin/python scripts/apobec3a/generate_structure_cache.py
 ```
 
 ---
@@ -265,7 +298,9 @@ data/processed/
 ├── negatives_tier3.csv               # ~75K TC in stem-loops
 ├── site_sequences.json               # All sequences by site_id
 ├── splits_expanded.csv               # Full dataset splits (all datasets)
+├── splits_expanded_a3a.csv           # A3A-filtered (8,153 sites, canonical)
 ├── splits_levanon_expanded.csv       # Levanon + tiered negatives splits
+├── clinvar_c2u_variants.csv          # ClinVar C>T variants (1.68M)
 └── embeddings/
     ├── rnafm_pooled.pt               # 640-dim pooled RNA-FM embeddings
     ├── rnafm_tokens.pt               # Per-token RNA-FM embeddings (~5GB)
@@ -290,10 +325,10 @@ python -c "from pyfaidx import Fasta; Fasta('data/raw/genomes/hg19.fa')"
 
 **CUDA out of memory**: Reduce batch size for embedding generation:
 ```bash
-python scripts/apobec/expand_dataset.py --batch-size 4
+python scripts/apobec3a/expand_dataset.py --batch-size 4
 ```
 
 **Check environment**: Run the diagnostic script to verify all dependencies:
 ```bash
-python scripts/apobec/check_environment.py
+python scripts/apobec3a/check_environment.py
 ```

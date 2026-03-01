@@ -501,7 +501,7 @@ class APOBECDatasetBuilder:
         if not csv_path.exists():
             raise FileNotFoundError(
                 f"Labels CSV not found: {csv_path}\n"
-                "Run: python scripts/apobec/parse_advisor_excel.py first."
+                "Run: python scripts/apobec3a/parse_advisor_excel.py first."
             )
         df = pd.read_csv(csv_path)
 

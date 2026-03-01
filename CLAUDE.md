@@ -90,10 +90,10 @@ src/
 └── utils/                 # Splits, metrics, caching, logging
 
 experiments/
-└── apobec/                # APOBEC experiments
+└── apobec3a/              # APOBEC3A experiments
 
 scripts/
-└── apobec/                # APOBEC preprocessing scripts
+└── apobec3a/              # APOBEC3A preprocessing scripts
 
 data/                      # Raw and processed datasets
 tests/                     # Unit tests
@@ -104,8 +104,8 @@ tests/                     # Unit tests
 ## Key Patterns
 
 - **Embedders**: Inherit from base classes in `src/embedding/`
-- **Experiments**: Config-driven, placed in `experiments/apobec/`
-- **Preprocessing**: Scripts go in `scripts/apobec/`
+- **Experiments**: Config-driven, placed in `experiments/apobec3a/`
+- **Preprocessing**: Scripts go in `scripts/apobec3a/`
 
 ---
 
@@ -115,13 +115,17 @@ After cloning the git repo, you need to regenerate all processed data from the r
 
 ### Step 1: Unpack raw data
 
-Copy `editrna_raw_data.tar.gz` (7.5MB) to the project root and unpack:
+Copy `editrna_raw_data.tar.gz` (8.7MB) to the project root and unpack:
 
 ```bash
 tar -xzf editrna_raw_data.tar.gz
 ```
 
-This extracts: `C2TFinalSites.DB.xlsx` and published dataset files into `data/raw/published/`.
+This extracts all raw datasets into `data/raw/`:
+- `C2TFinalSites.DB.xlsx` (Advisor/Levanon 636 sites)
+- `asaoka_2019_table_s1.xls`, `sharma_2015_supp_data.xls`, `alqassim_2021/` (published datasets)
+- `baysal_2016/` (supplementary tables, ~4,200 sites)
+- `levanon/tissue_editing_rates.csv` (54 GTEx tissue rates, pre-extracted from advisor T1 sheet)
 
 ### Step 2: Download reference genome
 
@@ -223,7 +227,7 @@ Computed ViennaRNA structure features for ~4,208 Baysal sites using `--increment
 - **`exp_classification_a3a_5fold.py`**: Fixed NaN in hand-augmented features with `np.nan_to_num`; added `_inject_hand_features` helper for EditRNA+Features model
 
 ### HTML Report
-`experiments/apobec/generate_html_report.py` → `outputs/v3_report.html`
+`experiments/apobec3a/generate_html_report.py` → `outputs/v3_report.html`
 - Rate results with feature importance table (importance bars + Spearman ρ + descriptions)
 - Classification results (pending experiment completion)
 - Feature importance comparison (rate vs classification)
@@ -251,10 +255,10 @@ Computed ViennaRNA structure features for ~4,208 Baysal sites using `--increment
 | **GB_Full (p>=0.5)** | **1.333** | **6.5e-41** | **Enriched** |
 
 **Key files**:
-- `experiments/apobec/replicate_rnasee_cds.py` — CDS-based replication with keyword binning validation + GB-only analysis
-- `experiments/apobec/replot_clinvar.py` — OR comparison charts, enrichment-by-threshold, pathogenic ratio plots
-- `experiments/apobec/outputs/clinvar_prediction/rnasee_cds_replication.json` — Full results
-- `experiments/apobec/outputs/clinvar_prediction/clinvar_all_scores.csv` — 1.68M scored variants
+- `experiments/apobec3a/replicate_rnasee_cds.py` — CDS-based replication with keyword binning validation + GB-only analysis
+- `experiments/apobec3a/replot_clinvar.py` — OR comparison charts, enrichment-by-threshold, pathogenic ratio plots
+- `experiments/apobec3a/outputs/clinvar_prediction/rnasee_cds_replication.json` — Full results
+- `experiments/apobec3a/outputs/clinvar_prediction/clinvar_all_scores.csv` — 1.68M scored variants
 
 ### Prior-Calibrated ClinVar Analysis (Mar 2026)
 
@@ -269,10 +273,10 @@ Calibrated threshold (P_model where P_cal=0.5, Tier1 prior): **t_cal ≈ 0.946**
 **Key finding**: Pathogenic enrichment persists (or strengthens) at calibrated thresholds, confirming the signal is not an artifact of the inflated training prior.
 
 **Key files**:
-- `experiments/apobec/exp_clinvar_calibrated.py` — Main calibration analysis
-- `experiments/apobec/outputs/clinvar_calibrated/` — Results JSON + calibrated scores CSV + figures
-- `experiments/apobec/replot_clinvar.py` — Now includes calibrated OR comparison plot
-- `experiments/apobec/exp_disease_enrichment.py` — Now includes model-predicted gene enrichment (section 6)
+- `experiments/apobec3a/exp_clinvar_calibrated.py` — Main calibration analysis
+- `experiments/apobec3a/outputs/clinvar_calibrated/` — Results JSON + calibrated scores CSV + figures
+- `experiments/apobec3a/replot_clinvar.py` — Now includes calibrated OR comparison plot
+- `experiments/apobec3a/exp_disease_enrichment.py` — Now includes model-predicted gene enrichment (section 6)
 
 ### Embedding Visualization Overhaul (Feb 2026)
 
