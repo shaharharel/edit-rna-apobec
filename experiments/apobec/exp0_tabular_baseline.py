@@ -488,25 +488,42 @@ def run_shap_analysis(model, X_train, X_test, feature_names, output_dir, model_n
 # ---------------------------------------------------------------------------
 
 def run_binary_classification(features_df, labels, splits, output_dir):
-    """Run binary editing site classification with RF and GB."""
+    """Run binary editing site classification with RF and GB.
+
+    Runs with multiple feature sets:
+    - full: All features (known leakage, for reference)
+    - binary_safe: Only features without leakage for binary task
+    - common_only: Legacy - excludes positive-only annotation features
+    """
+    from data.feature_sets import get_feature_set
+
     logger.info("\n" + "=" * 80)
     logger.info("TASK: Binary Editing Site Classification")
     logger.info("=" * 80)
 
     results = {}
 
-    for feature_set in ["common_only", "all_features"]:
-        if feature_set == "common_only":
-            exclude_cols = [
-                "is_in_loop", "is_dsrna", "is_ssrna_bulge", "is_open_ssrna",
-                "loop_length", "structure_concordant", "mammalian_conservation",
-                "primate_editing", "nonprimate_editing", "conservation_level",
-                "has_survival_assoc", "n_cancer_types", "hek293_rate", "n_tissues_edited",
-            ]
-            cols = [c for c in features_df.columns if c not in exclude_cols]
-        else:
-            cols = list(features_df.columns)
+    # Define feature sets: name -> column list
+    feature_set_configs = {}
 
+    # Clean feature sets from feature_sets.py
+    for fs_name in ["binary_safe", "full"]:
+        fs = get_feature_set(fs_name)
+        cols = [c for c in features_df.columns if c in fs.features]
+        if cols:
+            feature_set_configs[fs_name] = cols
+
+    # Legacy feature sets for backward compatibility
+    exclude_cols_common = [
+        "is_in_loop", "is_dsrna", "is_ssrna_bulge", "is_open_ssrna",
+        "loop_length", "structure_concordant", "mammalian_conservation",
+        "primate_editing", "nonprimate_editing", "conservation_level",
+        "has_survival_assoc", "n_cancer_types", "hek293_rate", "n_tissues_edited",
+    ]
+    feature_set_configs["common_only"] = [c for c in features_df.columns if c not in exclude_cols_common]
+    feature_set_configs["all_features"] = list(features_df.columns)
+
+    for feature_set, cols in feature_set_configs.items():
         X = features_df[cols].copy()
         feature_names = cols
 
@@ -875,6 +892,22 @@ def main():
     negatives_df = pd.read_csv(PROJECT_ROOT / "data" / "processed" / "advisor" / "negative_controls_ct.csv")
     splits_df = pd.read_csv(PROJECT_ROOT / "data" / "processed" / "splits.csv")
     logger.info("  Positives: %d, Negatives: %d", len(labels_df), len(negatives_df))
+
+    # Assign splits to negatives proportionally (same train/val/test ratio as positives)
+    neg_ids = negatives_df["site_id"].values
+    rng = np.random.RandomState(42)
+    n_neg = len(neg_ids)
+    pos_split_counts = splits_df["split"].value_counts(normalize=True)
+    neg_splits = rng.choice(
+        ["train", "val", "test"],
+        size=n_neg,
+        p=[pos_split_counts.get("train", 0.7),
+           pos_split_counts.get("val", 0.15),
+           pos_split_counts.get("test", 0.15)],
+    )
+    neg_splits_df = pd.DataFrame({"site_id": neg_ids, "split": neg_splits})
+    splits_df = pd.concat([splits_df, neg_splits_df], ignore_index=True)
+    logger.info("  Splits (with negatives): %s", splits_df["split"].value_counts().to_dict())
 
     # Task 1: Binary classification (pos vs neg)
     features_df, labels, splits, site_ids = build_feature_matrix(labels_df, negatives_df, splits_df)

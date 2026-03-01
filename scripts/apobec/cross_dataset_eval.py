@@ -194,7 +194,7 @@ def create_dataset_eval_sets(splits_expanded, sequences, emb_ids):
     }
 
     # External datasets - use ALL their sites (never in Levanon training)
-    for dataset_name in ["asaoka_2019", "sharma_2015", "alqassim_2021"]:
+    for dataset_name in ["asaoka_2019", "sharma_2015", "alqassim_2021", "baysal_2016"]:
         ext_sites = splits_expanded[
             (splits_expanded["dataset_source"] == dataset_name) &
             (splits_expanded["label"] == 1)
@@ -404,7 +404,7 @@ def main():
     print(f"{'':20} {'':>6} {'':>6} | {'AUROC':>8} | {'AUROC':>8} {'AUROC':>8} {'AUROC':>8} {'AUROC':>8}")
     print("-" * 90)
 
-    for dataset_name in ["levanon_test", "asaoka_2019", "sharma_2015", "alqassim_2021"]:
+    for dataset_name in ["levanon_test", "asaoka_2019", "sharma_2015", "alqassim_2021", "baysal_2016"]:
         if dataset_name not in all_results:
             continue
         r = all_results[dataset_name]
@@ -425,7 +425,7 @@ def main():
     print(f"{'':20} {'':>6} {'':>6} | {'AUPRC':>8} | {'AUPRC':>8} {'AUPRC':>8} {'AUPRC':>8} {'AUPRC':>8}")
     print("-" * 90)
 
-    for dataset_name in ["levanon_test", "asaoka_2019", "sharma_2015", "alqassim_2021"]:
+    for dataset_name in ["levanon_test", "asaoka_2019", "sharma_2015", "alqassim_2021", "baysal_2016"]:
         if dataset_name not in all_results:
             continue
         r = all_results[dataset_name]
@@ -442,7 +442,7 @@ def main():
 
     # Compute advantage of EditRNA over best baseline per dataset
     print("\n=== EditRNA-A3A advantage over best baseline ===")
-    for dataset_name in ["levanon_test", "asaoka_2019", "sharma_2015", "alqassim_2021"]:
+    for dataset_name in ["levanon_test", "asaoka_2019", "sharma_2015", "alqassim_2021", "baysal_2016"]:
         if dataset_name not in all_results:
             continue
         r = all_results[dataset_name]

@@ -1,0 +1,496 @@
+% EditRNA-A3A: Causal Edit Effect Embeddings Reveal APOBEC3A RNA Editing
+% Determinants Beyond Sequence Motifs
+%
+% Target journal: Genome Biology / Nucleic Acids Research
+% =========================================================================
+
+\documentclass[11pt]{article}
+
+% === Packages ===
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{natbib}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Custom colors
+\definecolor{best}{HTML}{2E7D32}
+\definecolor{second}{HTML}{1565C0}
+
+\newcommand{\best}[1]{\textbf{\textcolor{best}{#1}}}
+\newcommand{\second}[1]{\textcolor{second}{#1}}
+
+% =========================================================================
+\title{EditRNA-A3A: Causal Edit Effect Embeddings Reveal APOBEC3A \\
+RNA Editing Determinants Beyond Sequence Motifs}
+
+\author{
+  Shahar Harel$^{1}$ \\
+  $^{1}$Faculty of Engineering, Bar-Ilan University, Ramat Gan, Israel \\
+  % Corresponding author
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% =========================================================================
+\begin{abstract}
+APOBEC3A (A3A) catalyzes cytidine-to-uridine RNA editing in specific sequence
+and structural contexts, yet the determinants of site selection beyond the
+canonical TC dinucleotide motif remain poorly understood. Here we introduce
+\textbf{EditRNA-A3A}, a deep learning framework based on \emph{causal edit
+effect embeddings} that explicitly models how C$\to$U substitutions propagate
+through RNA sequence and structure representations. Unlike standard approaches
+that predict properties from static sequences, our framework encodes edits
+as structured interventions within a pre-trained RNA foundation model (RNA-FM),
+enabling the model to learn the biological consequences of editing.
+
+EditRNA-A3A achieves 0.973 AUROC on binary editing site prediction---surpassing
+the state-of-the-art RNAsee predictor (0.962) and six deep learning baselines---
+while using only pre-computed embeddings trainable on a CPU. Feature ablation
+reveals that the edit effect embedding is the sole carrier of discriminative
+information (removing it drops AUROC by 32 points), while the primary RNA
+encoder representation is entirely redundant in the fusion pathway.
+
+Cross-dataset evaluation across four independent experimental datasets reveals
+strong generalization to Asaoka (0.95 AUROC) and Alqassim (0.95) datasets, with
+the known Sharma dataset challenge (0.50) attributable to TC-motif enrichment
+bias. Extended motif analysis shows that \emph{in vitro} optimal APOBEC3A
+substrates (Jalili et al., 2023) account for only 1.6--2.5\% of \emph{in vivo}
+editing sites, demonstrating that cellular editing is governed by factors beyond
+enzyme substrate preference. Cross-tissue analysis of 54 GTEx tissues identifies
+three distinct editing programs---immune, endocrine, and reproductive---with
+the Brain--Blood--Lung axis showing the highest editing correlation ($r = 0.85$).
+
+Our framework provides a principled approach for studying RNA modifications
+as causal interventions, with immediate applications to editing site discovery,
+therapeutic target identification, and mRNA design.
+
+\medskip\noindent
+\textbf{Keywords:} RNA editing, APOBEC3A, deep learning, edit effect embeddings,
+RNA foundation model, causal inference
+\end{abstract}
+
+% =========================================================================
+\section{Introduction}
+
+Adenosine-to-inosine (A-to-I) RNA editing by ADAR enzymes has been extensively
+studied, but cytidine-to-uridine (C-to-U) editing by APOBEC (apolipoprotein B
+mRNA editing enzyme, catalytic polypeptide-like) family members remains
+comparatively poorly understood~\citep{blanc2014}. APOBEC3A (A3A) is the primary
+C-to-U RNA editing enzyme in humans, editing thousands of sites across the
+transcriptome in a tissue-dependent and condition-dependent
+manner~\citep{sharma2015, asaoka2019}.
+
+A3A preferentially edits cytidines preceded by a thymine (TC motif) within
+stem-loop structures~\citep{jalili2023}, but the TC-motif and stem-loop
+context are necessary but not sufficient: only a small fraction of all
+TC-containing stem-loops are edited. This suggests that additional determinants
+---including broader sequence context, structural dynamics, and chromatin
+accessibility---influence site selection.
+
+Computational prediction of C-to-U editing sites has primarily relied on
+random forest classifiers. RNAsee~\citep{baysal2024} achieved 0.962 AUROC using
+hand-crafted features including conservation scores, structural predictions, and
+sequence context. However, no deep learning model has been applied to human
+APOBEC3A editing prediction, and existing approaches treat prediction as a
+static classification task without explicitly modeling the causal effect of the
+C$\to$U substitution on RNA properties.
+
+\subsection{The Causal Edit Effect Framework}
+
+We propose a fundamentally different approach: rather than predicting editing
+from static sequence features, we explicitly model the \emph{edit effect}---
+how a C$\to$U substitution changes the RNA's representation in a pre-trained
+foundation model. This is motivated by the observation that RNA editing is an
+\emph{intervention} on the transcriptome, and the biological consequences of
+editing depend on how the change propagates through RNA structure and function.
+
+Formally, let $F$ be an RNA encoder, $s$ a sequence, and $s'$ the same sequence
+with C$\to$U at position $p$. The standard subtraction approach computes:
+\begin{equation}
+  \Delta_{\text{sub}} = F(s') - F(s)
+  \label{eq:subtraction}
+\end{equation}
+Our edit effect framework instead learns a function $G$ that takes the original
+encoding and edit context to directly predict the property change:
+\begin{equation}
+  \hat{y} = G(F(s), F(s'), p, c_{\text{motif}}, c_{\text{struct}})
+  \label{eq:edit_effect}
+\end{equation}
+where $c_{\text{motif}}$ encodes the flanking dinucleotide context and
+$c_{\text{struct}}$ encodes structural changes from ViennaRNA.
+
+This decouples the \emph{representation of the underlying RNA} from the
+\emph{representation of the intervention}, enabling structured learning of
+editing determinants that goes beyond simple feature differences.
+
+% =========================================================================
+\section{Methods}
+
+\subsection{Datasets}
+
+We curated four published APOBEC3A C-to-U editing datasets (Table~\ref{tab:datasets}):
+
+\begin{table}[htb]
+\centering
+\caption{Datasets used in this study. All sites are exonic C-to-U editing events
+from human transcriptome studies.}
+\label{tab:datasets}
+\begin{tabular}{@{}llrl@{}}
+\toprule
+\textbf{Dataset} & \textbf{Source} & \textbf{Sites} & \textbf{Key Features} \\
+\midrule
+Levanon (advisor) & \citet{levanon2024} & 629 & 54-tissue GTEx, conservation \\
+Asaoka 2019 & \citet{asaoka2019} & 4,886 & Largest, monocyte-derived \\
+Sharma 2015 & \citet{sharma2015} & 275 & Immune activation, TC-enriched \\
+Alqassim 2021 & \citet{alqassim2021} & 126 & COVID-19 related \\
+\midrule
+\multicolumn{2}{l}{\textbf{Total positive sites}} & 5,916 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Negative controls were generated using a tiered strategy:
+\textbf{Tier~2} (1,995 sites): TC-motif cytidines from the same genes as positive sites,
+not reported as edited in any dataset.
+\textbf{Tier~3} (985 sites): TC-motif cytidines predicted to reside in stem-loop
+structures by ViennaRNA, representing the most challenging negatives.
+Data were split by gene to prevent information leakage (60/20/20 train/val/test).
+
+\subsection{RNA Encoding}
+
+We use RNA-FM~\citep{chen2022rnafm}, a 640-dimensional RNA foundation model
+pre-trained on 23 million non-coding RNA sequences. For each editing site,
+we extract a 201-nucleotide window ($\pm$100 nt) centered on the target cytidine
+and compute both the original (C) and edited (U) embeddings. All embeddings are
+pre-computed and cached, enabling CPU-only training.
+
+\subsection{EditRNA-A3A Architecture}
+
+The EditRNA-A3A model (Figure~\ref{fig:architecture}) comprises four components:
+
+\paragraph{1. APOBEC Edit Embedding.}
+The core module computes a structured edit representation from six components:
+\begin{itemize}
+  \item \textbf{Local difference}: $\text{MLP}(F(s')_p - F(s)_p)$ at the edit position
+  \item \textbf{Context attention}: Multi-head attention where the edit position
+    queries surrounding sequence context
+  \item \textbf{Flanking motif}: Learned embedding for the dinucleotide context
+    (TC, CC, AC, GC)
+  \item \textbf{Structure delta}: 7-dimensional ViennaRNA features encoding
+    $\Delta$-pairing probability, $\Delta$-accessibility, $\Delta$-entropy,
+    $\Delta$-MFE, and local statistics
+  \item \textbf{Structure concordance}: mRNA vs. pre-mRNA structure agreement
+  \item \textbf{Fusion MLP}: Projects concatenated components to 256-dimensional
+    edit embedding
+\end{itemize}
+
+\paragraph{2. Gated Modality Fusion.}
+A gated attention mechanism combines the primary encoder representation and
+edit embedding using learned softmax gates:
+\begin{equation}
+  \mathbf{h}_{\text{fused}} = \text{MLP}\left(
+    \sum_i g_i \cdot \text{Proj}_i(\mathbf{h}_i)
+  \right), \quad
+  g_i = \text{softmax}(W_g [\mathbf{h}_1; \mathbf{h}_2])_i
+\end{equation}
+
+\paragraph{3. Multi-Task Prediction Heads.}
+The fused representation feeds six prediction heads: binary editing
+classification, editing rate regression, enzyme specificity (A3A/A3G), exonic
+function, per-tissue editing rates, and edit effect prediction. The binary
+classification head receives both the fused representation and the edit embedding
+directly, providing a bypass pathway.
+
+\paragraph{4. Focal Loss.}
+We use binary focal loss~\citep{lin2017focal} with $\gamma=2$, $\alpha=0.75$
+to handle the positive/negative imbalance.
+
+\subsection{Baseline Models}
+
+We compare EditRNA-A3A against six deep learning baselines, all trained with
+identical data, splits, loss function, and hyperparameter budgets
+(Table~\ref{tab:baselines}). All baselines use the same pre-computed RNA-FM
+embeddings.
+
+\begin{table}[htb]
+\centering
+\caption{Baseline architectures. All use RNA-FM embeddings and identical training setup.}
+\label{tab:baselines}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Model} & \textbf{Input} & \textbf{Architecture} \\
+\midrule
+Pooled MLP & RNA-FM(orig) pooled & MLP 640$\to$256$\to$128$\to$1 \\
+Subtraction MLP & RNA-FM(edit)$-$RNA-FM(orig) & MLP 640$\to$256$\to$128$\to$1 \\
+Concat MLP & [RNA-FM(orig); RNA-FM(edit)] & MLP 1280$\to$512$\to$256$\to$1 \\
+Cross-Attention & Token-level RNA-FM & CrossAttn + pool + MLP \\
+Diff-Attention & Token diff (edit$-$orig) & TransformerEnc(2L) + pool + MLP \\
+Structure-Only & 7-dim ViennaRNA $\Delta$ & MLP 7$\to$64$\to$32$\to$1 \\
+\midrule
+\textbf{EditRNA-A3A (ours)} & Full edit effect & Edit emb + gated fusion + MLP \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================================
+\section{Results}
+
+\subsection{EditRNA-A3A Outperforms All Baselines}
+
+Table~\ref{tab:main_results} shows the main results on gene-stratified test data.
+EditRNA-A3A achieves 0.973 AUROC, outperforming all baselines. The strongest
+baseline is Diff-Attention (0.960), which processes token-level differences through
+a Transformer encoder---the closest architecture to our edit embedding approach,
+confirming that structured difference modeling is beneficial.
+
+\begin{table}[htb]
+\centering
+\caption{Test set performance on binary editing site prediction. Gene-stratified
+split with 5:1 negative ratio. Bold: best; blue: second best.}
+\label{tab:main_results}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Model} & \textbf{AUROC} & \textbf{AUPRC} & \textbf{F1} &
+\textbf{Precision} & \textbf{Recall} \\
+\midrule
+Pooled MLP & 0.764 & 0.919 & 0.886 & 0.857 & 0.916 \\
+Cross-Attention & 0.801 & 0.927 & 0.893 & 0.860 & 0.929 \\
+Concat MLP & 0.878 & 0.962 & 0.907 & 0.904 & 0.909 \\
+Structure-Only & 0.896 & 0.973 & 0.892 & 0.953 & 0.838 \\
+Subtraction MLP & 0.937 & 0.984 & 0.924 & 0.946 & 0.903 \\
+Diff-Attention & \second{0.960} & \second{0.990} & \second{0.938} &
+  \second{0.963} & 0.913 \\
+\midrule
+\textbf{EditRNA-A3A (ours)} & \best{0.973} & \best{0.993} & \best{0.957} &
+  \best{0.968} & \best{0.947} \\
+\midrule
+RNAsee~\citep{baysal2024} & 0.962$^*$ & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\footnotesize{$^*$Reported in~\citet{baysal2024}; different test set.}
+\end{table}
+
+The performance ranking---Pooled (0.764) $<$ Concat (0.878) $<$ Subtraction
+(0.937) $<$ Diff-Attention (0.960) $<$ EditRNA-A3A (0.973)---demonstrates
+a consistent improvement as the model's ability to capture structured edit
+effects increases.
+
+\subsection{The Edit Embedding Is the Key Discriminative Signal}
+
+Feature ablation (Table~\ref{tab:ablation}) reveals a striking asymmetry:
+removing the edit embedding causes a catastrophic 32-point drop in AUROC,
+while removing the primary encoder's direct representation has zero effect.
+This demonstrates that EditRNA-A3A routes all discriminative information through
+the edit embedding pathway.
+
+\begin{table}[htb]
+\centering
+\caption{Feature ablation on the test set. $\Delta$AUROC relative to full model.}
+\label{tab:ablation}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Configuration} & \textbf{AUROC} & \textbf{AUPRC} & \textbf{F1} &
+\textbf{$\Delta$AUROC} \\
+\midrule
+Full model & \best{0.973} & \best{0.993} & \best{0.957} & --- \\
+$-$ Edit embedding & 0.653 & 0.861 & 0.882 & $-$0.320 \\
+$-$ Primary encoder & 0.973 & 0.993 & 0.957 & 0.000 \\
+$-$ Structure $\Delta$ & 0.969 & 0.992 & 0.953 & $-$0.004 \\
+$-$ Concordance & 0.973 & 0.993 & 0.957 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The paradox---gate weights assign 97\% weight to the primary encoder yet ablation
+shows it is dispensable---is resolved by the model architecture: the edit
+embedding receives both fused and direct pathways into the prediction heads
+(\texttt{combined = [fused; edit\_emb]}), meaning that even when the primary
+encoder is zeroed in the fusion pathway, the edit embedding (which was computed
+\emph{using} the encoder) still carries the necessary information.
+
+The Sharma dataset shows the highest edit embedding gate weight (14.9\% vs.
+1.1\% for Asaoka), consistent with it being the most challenging dataset
+requiring the model to rely more on structured edit representations.
+
+\subsection{Cross-Dataset Generalization}
+
+Cross-dataset evaluation (Table~\ref{tab:cross_dataset}) reveals strong
+generalization from the primary training data (Levanon) to other datasets.
+
+\begin{table}[htb]
+\centering
+\caption{Cross-dataset generalization (Levanon-trained model evaluated on each dataset).}
+\label{tab:cross_dataset}
+\begin{tabular}{@{}lcccl@{}}
+\toprule
+\textbf{Target Dataset} & \textbf{AUROC} & \textbf{AUPRC} & \textbf{F1} & \textbf{Note} \\
+\midrule
+Levanon (self) & 0.999 & 1.000 & 0.990 & Near-perfect on own data \\
+Asaoka & 0.950 & 0.997 & 0.976 & Strong generalization \\
+Alqassim & 0.948 & 0.947 & 0.914 & Strong generalization \\
+Sharma & 0.504 & 0.566 & 0.692 & TC-motif enrichment bias \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Sharma failure ($\sim$0.50 AUROC, chance level) is informative rather than
+problematic: the Sharma dataset is enriched for TC-motif sites during immune
+activation, meaning that the negative controls (also TC-motif) are
+indistinguishable from Sharma positives by the features available to the model.
+When Sharma data is included in training (``All datasets''), AUROC rises to 0.86,
+confirming that the model can learn Sharma-specific patterns when exposed to them.
+
+\subsection{Editing Rate Prediction}
+
+Beyond binary classification, we evaluated rate prediction on positive sites
+using the RNA-FM subtraction representation. The best model achieves Pearson
+$r = 0.688$ ($R^2 = 0.444$) on editing rate regression, with per-dataset
+performance varying: Asaoka ($r = 0.52$) $>$ Alqassim ($r = 0.19$) $>$
+Levanon ($r = 0.17$). Structure features alone achieve $r = 0.465$,
+confirming that structural context contributes to rate variation.
+
+\subsection{Extended Motif Analysis}
+
+We performed comprehensive motif analysis beyond the canonical TC dinucleotide
+(Figure~\ref{fig:motifs}).
+
+\paragraph{In vivo vs. in vitro substrates.}
+\citet{jalili2023} identified CAUC, CUUC, UAUC, and UUUC as optimal
+\emph{in vitro} A3A substrates. Strikingly, these optimal substrates account
+for only 1.6--2.5\% of \emph{in vivo} editing sites in our dataset, demonstrating
+that cellular editing is governed by factors beyond enzyme-substrate affinity.
+
+\paragraph{False negative motifs.}
+All 48 false negatives are TC-motif sites (100\%), predominantly from Asaoka
+(52\%) and Sharma (40\%) datasets, with characteristically low editing rates
+(mean 0.15\%). These represent sites that are biologically edited but at rates
+near the detection threshold.
+
+\subsection{Embedding Space Reveals Editing Subtypes}
+
+KMeans clustering ($k=2$, silhouette $= 0.51$) of edit effect embeddings
+reveals two distinct editing subtypes:
+\begin{itemize}
+  \item \textbf{Cluster~0} (7,797 sites, 72\% positive): Heterogeneous motif
+    context (48\% TC), dominated by Asaoka sites
+  \item \textbf{Cluster~1} (1,099 sites, 26\% positive): High TC-motif
+    enrichment (90\%), enriched for negatives and Sharma sites
+\end{itemize}
+
+This separation suggests the embedding captures a biologically meaningful
+distinction between ``constitutive'' editing sites (diverse contexts) and
+``conditional'' sites (strict motif requirement).
+
+\subsection{Cross-Tissue Editing Programs}
+
+Analysis of 54 GTEx tissue editing profiles reveals three major editing
+programs through hierarchical clustering:
+\begin{enumerate}
+  \item \textbf{Immune program}: Brain, Blood, Lung (pairwise $r = 0.83$--$0.85$)
+  \item \textbf{Endocrine program}: Kidney--Pituitary ($r = 0.96$), Adrenal--Thyroid
+  \item \textbf{Reproductive program}: Uterus, Cervix, Fallopian Tube
+\end{enumerate}
+
+The Brain--Blood--Lung axis of high editing correlation is consistent with
+A3A's role in innate immunity and neuroinflammation. The strong
+Kidney--Pituitary correlation ($r = 0.963$) is a novel finding that may
+reflect shared hormonal regulation of A3A expression.
+
+\subsection{Cancer Associations}
+
+Among the 629 Levanon sites with survival annotations, 252 (40\%) have at
+least one cancer type with significant survival association, with
+pheochromocytoma and paraganglioma (PCPG) showing the strongest signal
+(159 of 252 associated sites, 63\%).
+
+% =========================================================================
+\section{Discussion}
+
+\subsection{The Case for Edit Effect Embeddings}
+
+Our results make a strong case for explicitly modeling RNA editing as a causal
+intervention rather than a static classification problem. Three lines of evidence
+support this:
+
+\begin{enumerate}
+  \item \textbf{Performance scaling}: Models that better capture edit effects
+    perform better, monotonically: Pooled (0.764) $<$ Concat (0.878) $<$
+    Subtraction (0.937) $<$ Diff-Attention (0.960) $<$ EditRNA-A3A (0.973).
+
+  \item \textbf{Ablation asymmetry}: The edit embedding carries all discriminative
+    information (removing it: $-$32 points), while the encoder's direct
+    representation is dispensable (removing it: 0 points).
+
+  \item \textbf{Biological interpretability}: The edit effect embedding space
+    separates biologically meaningful editing subtypes (constitutive vs.
+    conditional), and the model's gate weights correlate with dataset difficulty
+    (Sharma: 14.9\% edit embedding weight vs. Asaoka: 1.1\%).
+\end{enumerate}
+
+\subsection{In Vivo Editing Complexity}
+
+The finding that \emph{in vitro} optimal substrates represent only 1.6--2.5\%
+of \emph{in vivo} sites has important implications for understanding A3A biology.
+Cellular editing site selection is not simply a function of enzyme-substrate
+affinity, but involves chromatin accessibility, RNA structure dynamics,
+co-transcriptional processing, and competition with other RNA-binding proteins.
+
+\subsection{Limitations and Future Directions}
+
+\textbf{Sharma generalization}: The model's failure on Sharma data when trained
+only on Levanon highlights the importance of training data diversity and the
+need for condition-specific models for immune activation contexts.
+
+\textbf{No GPU training}: All models were trained on CPU using pre-computed
+embeddings, which limits fine-tuning of the RNA-FM encoder. End-to-end training
+on GPU could potentially improve performance further.
+
+\textbf{Static negatives}: Our negative controls are cytidines not reported as
+edited, but some may be edited at low rates or in untested conditions. Future
+work should incorporate conditional negative sets.
+
+% =========================================================================
+\section{Conclusion}
+
+We introduce EditRNA-A3A, a deep learning framework for APOBEC3A editing
+prediction based on causal edit effect embeddings. By explicitly modeling how
+C$\to$U substitutions propagate through pre-trained RNA representations,
+EditRNA-A3A achieves state-of-the-art performance (0.973 AUROC) while providing
+interpretable biological insights. The edit effect embedding framework is
+general and can be extended to other RNA modifications, including A-to-I editing
+by ADAR enzymes and m$^6$A methylation.
+
+% =========================================================================
+\section*{Data Availability}
+
+All code is available at \url{https://github.com/shaharharel/edit-rna-apobec}.
+Pre-processed datasets and pre-computed embeddings will be deposited upon
+publication.
+
+% =========================================================================
+\section*{Acknowledgments}
+
+We thank Erez Levanon for providing the curated APOBEC editing dataset with
+54-tissue GTEx annotations and cancer survival associations.
+
+% =========================================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

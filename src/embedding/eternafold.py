@@ -147,7 +147,7 @@ class EternaFoldPredictor:
         try:
             bpp_matrix = bpps(sequence, package="eternafold")
             # Sum over each row to get per-position pairing probability
-            pairing_prob = np.sum(bpp_matrix, axis=1)
+            pairing_prob = np.sum(bpp_matrix, axis=0) + np.sum(bpp_matrix, axis=1)
             pairing_prob = np.clip(pairing_prob, 0, 1)
         except Exception:
             # Fall back to MFE-based pairing

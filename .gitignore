@@ -92,7 +92,6 @@ checkpoints/
 !**/README.md
 !**/*.yaml
 !**/*.yml
-!**/*.html
 
 # =============================================================================
 # Caches
@@ -109,6 +108,17 @@ results/
 reports/
 **/results/
 **/figures/
+**/outputs/
+
+# Binary document formats (supplementary materials, presentations)
+*.doc
+*.docx
+*.ppt
+*.pptx
+
+# Images (generated plots)
+*.png
+*.pdf
 
 # =============================================================================
 # Local/personal files
@@ -117,9 +127,17 @@ reports/
 # Planning docs (local)
 PLAN_*.md
 *_PLAN.md
+plan.md
+plan_status.md
+
+# HTML reports (regenerable)
+*.html
 
 # Local settings
 settings.json
+
+# Processed data (79GB, regenerable from raw)
+data/processed/
 
 # Reference genomes (large, re-downloadable)
 data/raw/genomes/

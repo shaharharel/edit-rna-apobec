@@ -11,8 +11,10 @@ Output: data/processed/embeddings/vienna_structure_cache.npz
 
 Usage:
     /opt/miniconda3/envs/vienna/bin/python scripts/apobec/generate_structure_cache.py
+    /opt/miniconda3/envs/vienna/bin/python scripts/apobec/generate_structure_cache.py --incremental
 """
 
+import argparse
 import json
 import logging
 import time
@@ -57,7 +59,7 @@ def compute_structure_features(sequence: str, temperature: float = 37.0) -> dict
     bpp = bpp_raw[1:n+1, 1:n+1]
 
     # Per-position pairing probability
-    pairing_prob = np.clip(np.sum(bpp, axis=1), 0, 1)
+    pairing_prob = np.clip(np.sum(bpp, axis=0) + np.sum(bpp, axis=1), 0, 1)
     accessibility = 1.0 - pairing_prob
 
     # Per-position entropy
@@ -81,7 +83,72 @@ def compute_structure_features(sequence: str, temperature: float = 37.0) -> dict
     }
 
 
+def _compute_site(sid, seq, seq_len=201):
+    """Compute all structure features for a single site. Returns dict or None."""
+    if not seq or len(seq) < 10:
+        return None
+
+    actual_len = len(seq)
+    center = actual_len // 2
+    L = min(actual_len, seq_len)
+
+    # Original sequence
+    feat = compute_structure_features(seq)
+    pp = np.zeros(seq_len, dtype=np.float32)
+    acc = np.zeros(seq_len, dtype=np.float32)
+    ent = np.zeros(seq_len, dtype=np.float32)
+    pp[:L] = feat["pairing_prob"][:L]
+    acc[:L] = feat["accessibility"][:L]
+    ent[:L] = feat["entropy"][:L]
+
+    # Edited sequence (C->U at center)
+    seq_list = list(seq)
+    if center < len(seq_list) and seq_list[center].upper() == "C":
+        seq_list[center] = "U"
+    edited_seq = "".join(seq_list)
+
+    feat_ed = compute_structure_features(edited_seq)
+    pp_ed = np.zeros(seq_len, dtype=np.float32)
+    acc_ed = np.zeros(seq_len, dtype=np.float32)
+    ent_ed = np.zeros(seq_len, dtype=np.float32)
+    pp_ed[:L] = feat_ed["pairing_prob"][:L]
+    acc_ed[:L] = feat_ed["accessibility"][:L]
+    ent_ed[:L] = feat_ed["entropy"][:L]
+
+    # 7-dim delta features
+    window = 10
+    start = max(0, center - window)
+    end = min(actual_len, center + window + 1)
+    dp = feat_ed["pairing_prob"] - feat["pairing_prob"]
+    da = feat_ed["accessibility"] - feat["accessibility"]
+    de = feat_ed["entropy"] - feat["entropy"]
+
+    delta = np.zeros(7, dtype=np.float32)
+    delta[0] = dp[center] if center < len(dp) else 0.0
+    delta[1] = da[center] if center < len(da) else 0.0
+    delta[2] = de[center] if center < len(de) else 0.0
+    delta[3] = feat_ed["mfe"] - feat["mfe"]
+    delta[4] = np.mean(dp[start:end])
+    delta[5] = np.mean(da[start:end])
+    delta[6] = np.std(dp[start:end])
+
+    return {
+        "pairing_probs": pp, "accessibilities": acc, "entropies": ent,
+        "mfe": feat["mfe"],
+        "pairing_probs_edited": pp_ed, "accessibilities_edited": acc_ed,
+        "entropies_edited": ent_ed, "mfe_edited": feat_ed["mfe"],
+        "delta_features": delta,
+    }
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Generate ViennaRNA structure cache")
+    parser.add_argument("--incremental", action="store_true",
+                        help="Only compute missing sites, merge with existing cache")
+    parser.add_argument("--needed-csv", type=str, default=None,
+                        help="CSV file with site_id column; only compute sites from this file")
+    args = parser.parse_args()
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     # Load sequences
@@ -92,117 +159,144 @@ def main():
     with open(SEQUENCES_JSON) as f:
         sequences = json.load(f)
 
-    site_ids = list(sequences.keys())
-    logger.info("Loaded %d sequences", len(site_ids))
+    logger.info("Loaded %d sequences from JSON", len(sequences))
     logger.info("ViennaRNA version: %s", RNA.__version__)
 
-    # Allocate arrays
-    n_sites = len(site_ids)
-    seq_len = 201  # Expected length
+    output_path = OUTPUT_DIR / "vienna_structure_cache.npz"
+    seq_len = 201
 
-    # Per-position features for original sequences
-    pairing_probs = np.zeros((n_sites, seq_len), dtype=np.float32)
-    accessibilities = np.zeros((n_sites, seq_len), dtype=np.float32)
-    entropies = np.zeros((n_sites, seq_len), dtype=np.float32)
-    mfes = np.zeros(n_sites, dtype=np.float32)
+    # ---- Incremental mode ----
+    if args.incremental:
+        if not output_path.exists():
+            logger.warning("No existing cache found, running full computation instead")
+            args.incremental = False
 
-    # Per-position features for edited sequences (C->U at center)
-    pairing_probs_edited = np.zeros((n_sites, seq_len), dtype=np.float32)
-    accessibilities_edited = np.zeros((n_sites, seq_len), dtype=np.float32)
-    entropies_edited = np.zeros((n_sites, seq_len), dtype=np.float32)
-    mfes_edited = np.zeros(n_sites, dtype=np.float32)
+    existing_sids = set()
+    existing_data = None
+    if args.incremental:
+        existing_data = np.load(str(output_path), allow_pickle=True)
+        existing_sids = set(str(s) for s in existing_data["site_ids"])
+        logger.info("Existing cache has %d sites", len(existing_sids))
 
-    # Delta features (7-dim per site)
-    delta_features = np.zeros((n_sites, 7), dtype=np.float32)
+    # Determine which sites to compute
+    all_seq_sids = list(sequences.keys())
+
+    # Optionally restrict to sites from a CSV (e.g., splits_expanded.csv)
+    needed_sids = None
+    if args.needed_csv:
+        import pandas as pd
+        needed_df = pd.read_csv(args.needed_csv)
+        needed_sids = set(needed_df["site_id"].astype(str))
+        logger.info("Restricting to %d sites from %s", len(needed_sids), args.needed_csv)
+        all_seq_sids = [s for s in all_seq_sids if s in needed_sids]
+
+    if args.incremental:
+        missing_sids = [s for s in all_seq_sids if s not in existing_sids]
+        logger.info("Missing sites to compute: %d", len(missing_sids))
+        if not missing_sids:
+            logger.info("All sites already in cache, nothing to do")
+            return
+        compute_sids = missing_sids
+    else:
+        compute_sids = all_seq_sids
+
+    # Compute features for needed sites
+    n_compute = len(compute_sids)
+    pairing_probs = np.zeros((n_compute, seq_len), dtype=np.float32)
+    accessibilities = np.zeros((n_compute, seq_len), dtype=np.float32)
+    entropies = np.zeros((n_compute, seq_len), dtype=np.float32)
+    mfes = np.zeros(n_compute, dtype=np.float32)
+    pairing_probs_edited = np.zeros((n_compute, seq_len), dtype=np.float32)
+    accessibilities_edited = np.zeros((n_compute, seq_len), dtype=np.float32)
+    entropies_edited = np.zeros((n_compute, seq_len), dtype=np.float32)
+    mfes_edited = np.zeros(n_compute, dtype=np.float32)
+    delta_features = np.zeros((n_compute, 7), dtype=np.float32)
 
     t0 = time.time()
     n_success = 0
 
-    for i, sid in enumerate(site_ids):
+    for i, sid in enumerate(compute_sids):
         seq = sequences[sid]
-        if not seq or len(seq) < 10:
-            continue
-
-        actual_len = len(seq)
-        center = actual_len // 2
-
         try:
-            # Original sequence
-            feat = compute_structure_features(seq)
-            L = min(actual_len, seq_len)
-            pairing_probs[i, :L] = feat["pairing_prob"][:L]
-            accessibilities[i, :L] = feat["accessibility"][:L]
-            entropies[i, :L] = feat["entropy"][:L]
-            mfes[i] = feat["mfe"]
-
-            # Edited sequence (C->U at center)
-            seq_list = list(seq)
-            if center < len(seq_list) and seq_list[center].upper() == "C":
-                seq_list[center] = "U"
-            edited_seq = "".join(seq_list)
-
-            feat_ed = compute_structure_features(edited_seq)
-            pairing_probs_edited[i, :L] = feat_ed["pairing_prob"][:L]
-            accessibilities_edited[i, :L] = feat_ed["accessibility"][:L]
-            entropies_edited[i, :L] = feat_ed["entropy"][:L]
-            mfes_edited[i] = feat_ed["mfe"]
-
-            # Compute 7-dim delta features
-            window = 10
-            start = max(0, center - window)
-            end = min(actual_len, center + window + 1)
-
-            dp = feat_ed["pairing_prob"] - feat["pairing_prob"]
-            da = feat_ed["accessibility"] - feat["accessibility"]
-            de = feat_ed["entropy"] - feat["entropy"]
-
-            delta_features[i, 0] = dp[center] if center < len(dp) else 0.0
-            delta_features[i, 1] = da[center] if center < len(da) else 0.0
-            delta_features[i, 2] = de[center] if center < len(de) else 0.0
-            delta_features[i, 3] = feat_ed["mfe"] - feat["mfe"]
-            delta_features[i, 4] = np.mean(dp[start:end])
-            delta_features[i, 5] = np.mean(da[start:end])
-            delta_features[i, 6] = np.std(dp[start:end])
-
-            n_success += 1
-
+            result = _compute_site(sid, seq, seq_len)
+            if result is not None:
+                pairing_probs[i] = result["pairing_probs"]
+                accessibilities[i] = result["accessibilities"]
+                entropies[i] = result["entropies"]
+                mfes[i] = result["mfe"]
+                pairing_probs_edited[i] = result["pairing_probs_edited"]
+                accessibilities_edited[i] = result["accessibilities_edited"]
+                entropies_edited[i] = result["entropies_edited"]
+                mfes_edited[i] = result["mfe_edited"]
+                delta_features[i] = result["delta_features"]
+                n_success += 1
         except Exception as e:
             logger.warning("Failed for site %s: %s", sid, e)
 
         if (i + 1) % 100 == 0:
             elapsed = time.time() - t0
             rate = (i + 1) / elapsed
-            logger.info("Processed %d/%d (%.1f sites/sec)", i + 1, n_sites, rate)
+            logger.info("Processed %d/%d (%.1f sites/sec)", i + 1, n_compute, rate)
 
     elapsed = time.time() - t0
-    logger.info("Processed %d/%d sites in %.1f seconds", n_success, n_sites, elapsed)
+    logger.info("Computed %d/%d sites in %.1f seconds", n_success, n_compute, elapsed)
 
-    # Save
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = OUTPUT_DIR / "vienna_structure_cache.npz"
+    # ---- Merge with existing cache if incremental ----
+    if args.incremental and existing_data is not None:
+        logger.info("Merging with existing cache...")
+        old_sids = list(existing_data["site_ids"])
+        new_sids = old_sids + compute_sids
+        n_total = len(new_sids)
 
-    np.savez_compressed(
-        output_path,
-        site_ids=np.array(site_ids),
-        pairing_probs=pairing_probs,
-        accessibilities=accessibilities,
-        entropies=entropies,
-        mfes=mfes,
-        pairing_probs_edited=pairing_probs_edited,
-        accessibilities_edited=accessibilities_edited,
-        entropies_edited=entropies_edited,
-        mfes_edited=mfes_edited,
-        delta_features=delta_features,
-    )
+        def _merge(old_key, new_arr):
+            old = existing_data[old_key]
+            return np.concatenate([old, new_arr], axis=0)
+
+        merged = {
+            "site_ids": np.array(new_sids),
+            "pairing_probs": _merge("pairing_probs", pairing_probs),
+            "accessibilities": _merge("accessibilities", accessibilities),
+            "entropies": _merge("entropies", entropies),
+            "mfes": _merge("mfes", mfes),
+            "pairing_probs_edited": _merge("pairing_probs_edited", pairing_probs_edited),
+            "accessibilities_edited": _merge("accessibilities_edited", accessibilities_edited),
+            "entropies_edited": _merge("entropies_edited", entropies_edited),
+            "mfes_edited": _merge("mfes_edited", mfes_edited),
+            "delta_features": _merge("delta_features", delta_features),
+        }
+        logger.info("Merged cache: %d total sites (%d existing + %d new)",
+                     n_total, len(old_sids), len(compute_sids))
+
+        # Save merged
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(output_path, **merged)
+    else:
+        # Save fresh
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            output_path,
+            site_ids=np.array(compute_sids),
+            pairing_probs=pairing_probs,
+            accessibilities=accessibilities,
+            entropies=entropies,
+            mfes=mfes,
+            pairing_probs_edited=pairing_probs_edited,
+            accessibilities_edited=accessibilities_edited,
+            entropies_edited=entropies_edited,
+            mfes_edited=mfes_edited,
+            delta_features=delta_features,
+        )
+
     logger.info("Saved to %s (%.1f MB)", output_path, output_path.stat().st_size / 1e6)
 
     # Summary
     logger.info("\n=== Summary ===")
-    logger.info("Sites: %d/%d processed", n_success, n_sites)
-    logger.info("Mean MFE (original): %.2f kcal/mol", np.mean(mfes[mfes != 0]))
-    logger.info("Mean MFE (edited): %.2f kcal/mol", np.mean(mfes_edited[mfes_edited != 0]))
-    logger.info("Mean delta MFE: %.4f kcal/mol", np.mean(delta_features[:, 3]))
-    logger.info("Mean delta pairing at edit: %.4f", np.mean(delta_features[:, 0]))
+    logger.info("Sites computed this run: %d/%d", n_success, n_compute)
+    if mfes[mfes != 0].size > 0:
+        logger.info("Mean MFE (original): %.2f kcal/mol", np.mean(mfes[mfes != 0]))
+        logger.info("Mean MFE (edited): %.2f kcal/mol", np.mean(mfes_edited[mfes_edited != 0]))
+        logger.info("Mean delta MFE: %.4f kcal/mol", np.mean(delta_features[:, 3]))
+        logger.info("Mean delta pairing at edit: %.4f", np.mean(delta_features[:, 0]))
 
 
 if __name__ == "__main__":

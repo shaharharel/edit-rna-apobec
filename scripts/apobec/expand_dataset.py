@@ -36,7 +36,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 logger = logging.getLogger(__name__)
 
 # Paths
-GENOME_PATH = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg19.fa"
+GENOME_PATH = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg38.fa"
 EMBEDDING_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SEQUENCES_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 
@@ -55,9 +55,9 @@ FLANK_SIZE = 100  # 201nt window
 
 
 def load_genome():
-    """Load hg19 genome."""
+    """Load hg38 genome."""
     from pyfaidx import Fasta
-    logger.info("Loading hg19 genome...")
+    logger.info("Loading hg38 genome from %s ...", GENOME_PATH)
     genome = Fasta(str(GENOME_PATH))
     return genome
 
@@ -101,7 +101,8 @@ def load_all_positive_sites() -> pd.DataFrame:
 
     # Deduplicate by coordinate (keep first occurrence, prefer advisor)
     dataset_priority = {"advisor_c2t": 0, "alqassim_2021": 1,
-                        "asaoka_2019": 2, "sharma_2015": 3}
+                        "baysal_2016": 2, "asaoka_2019": 3,
+                        "sharma_2015": 4}
     df["priority"] = df["dataset_source"].map(dataset_priority).fillna(99)
     df = df.sort_values("priority")
     df = df.drop_duplicates(subset=["chr", "start"], keep="first")
@@ -262,6 +263,7 @@ def generate_rnafm_embeddings(
     sequences: dict,
     batch_size: int = 16,
     device: str = None,
+    pooled_only: bool = False,
 ) -> dict:
     """Generate RNA-FM embeddings for new sequences."""
     if not sequences:
@@ -288,7 +290,8 @@ def generate_rnafm_embeddings(
 
     # Encode original
     pooled_dict, tokens_dict = _batch_encode(
-        encoder, site_ids, site_seqs, batch_size, device_obj
+        encoder, site_ids, site_seqs, batch_size, device_obj,
+        pooled_only=pooled_only
     )
 
     # Encode edited (C->U at center)
@@ -301,7 +304,8 @@ def generate_rnafm_embeddings(
         edited_seqs.append("".join(seq_list))
 
     pooled_ed, tokens_ed = _batch_encode(
-        encoder, site_ids, edited_seqs, batch_size, device_obj
+        encoder, site_ids, edited_seqs, batch_size, device_obj,
+        pooled_only=pooled_only
     )
 
     return {
@@ -313,7 +317,8 @@ def generate_rnafm_embeddings(
 
 
 @torch.no_grad()
-def _batch_encode(encoder, site_ids, sequences, batch_size, device):
+def _batch_encode(encoder, site_ids, sequences, batch_size, device,
+                  pooled_only=False):
     """Encode sequences in batches."""
     pooled_dict = {}
     tokens_dict = {}
@@ -325,11 +330,11 @@ def _batch_encode(encoder, site_ids, sequences, batch_size, device):
 
         out = encoder(sequences=batch_seqs)
         batch_pooled = out["pooled"].cpu()
-        batch_tokens = out["embeddings"].cpu()
 
         for j, sid in enumerate(batch_ids):
             pooled_dict[sid] = batch_pooled[j]
-            tokens_dict[sid] = batch_tokens[j]
+            if not pooled_only:
+                tokens_dict[sid] = out["embeddings"][j].cpu()
 
         processed = min(i + batch_size, total)
         if processed % 100 == 0 or processed == total:
@@ -444,6 +449,8 @@ def main():
                         help="Only extract sequences, skip embedding generation")
     parser.add_argument("--batch-size", type=int, default=16,
                         help="Batch size for RNA-FM encoding")
+    parser.add_argument("--pooled-only", action="store_true",
+                        help="Only generate pooled embeddings (skip token-level to save RAM)")
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -522,6 +529,7 @@ def main():
             sites_needing_embeddings,
             batch_size=args.batch_size,
             device=args.device,
+            pooled_only=args.pooled_only,
         )
 
         # 8. Merge into existing cache
@@ -535,6 +543,12 @@ def main():
         cached_ids = set(json.load(f))
 
     splits = create_expanded_splits(expanded, cached_ids, seed=args.seed)
+
+    # Add normalized editing rates (all datasets on 0-1 scale)
+    # advisor_c2t rates are on 0-100 percentage scale, others are 0-1 fractions
+    from normalize_editing_rates import normalize_rates
+    splits = normalize_rates(splits)
+    logger.info("Added editing_rate_normalized column (all rates on 0-1 scale)")
 
     # Save expanded splits
     splits_path = OUTPUT_DIR / "splits_expanded.csv"

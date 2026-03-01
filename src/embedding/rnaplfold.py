@@ -140,7 +140,7 @@ class RNAplfoldPredictor:
         bpp = bpp_raw[1:n+1, 1:n+1]
 
         # Compute per-position pairing probability (sum of BP probs)
-        pairing_prob = np.sum(bpp, axis=1)
+        pairing_prob = np.sum(bpp, axis=0) + np.sum(bpp, axis=1)
         pairing_prob = np.clip(pairing_prob, 0, 1)
 
         # Accessibility = 1 - pairing probability

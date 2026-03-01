@@ -1,4 +1,4 @@
-"""Generate 3-tier negative control sets from hg19 transcript sequences.
+"""Generate 3-tier negative control sets from hg38 transcript sequences.
 
 Tier 1: All exonic C positions in transcripts harboring positive editing sites.
          These are Cs that COULD be edited but are NOT. (~1:200 ratio)
@@ -36,7 +36,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-GENOME_PATH = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg19.fa"
+GENOME_PATH = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg38.fa"
 REFGENE_PATH = PROJECT_ROOT / "data" / "raw" / "genomes" / "refGene.txt"
 LABELS_PATH = PROJECT_ROOT / "data" / "processed" / "editing_sites_labels.csv"
 UNIFIED_PATH = PROJECT_ROOT / "data" / "processed" / "advisor" / "unified_editing_sites.csv"
@@ -124,11 +124,21 @@ def predict_structures_for_windows(genome, sites_df: pd.DataFrame,
                                    batch_size: int = 50) -> list:
     """Predict RNA structures for windows around each site.
 
+    Uses ViennaRNA Python API if available, falls back to RNAfold CLI.
     Returns list of (dot_bracket, mfe, is_in_loop) tuples.
     """
-    if not RNAFOLD.exists():
-        logger.error("RNAfold not found at %s", RNAFOLD)
-        return [("", np.nan, False)] * len(sites_df)
+    try:
+        import RNA
+        use_python_api = True
+    except ImportError:
+        use_python_api = False
+        if not RNAFOLD.exists():
+            logger.error("Neither ViennaRNA Python nor RNAfold CLI available")
+            return [("", np.nan, False)] * len(sites_df)
+
+    if use_python_api:
+        md = RNA.md()
+        md.temperature = 37.0
 
     results = []
     total = len(sites_df)
@@ -165,13 +175,24 @@ def predict_structures_for_windows(genome, sites_df: pd.DataFrame,
             sequences.append(rna_seq)
             valid_indices.append(i)
 
-        # Run RNAfold on valid sequences
         valid_seqs = [sequences[i] for i in valid_indices if sequences[i]]
         valid_idx_filtered = [i for i in valid_indices if sequences[i]]
 
         batch_results = [("", np.nan, False)] * len(batch)
 
-        if valid_seqs:
+        if valid_seqs and use_python_api:
+            for seq_i, seq in enumerate(valid_seqs):
+                try:
+                    fc = RNA.fold_compound(seq, md)
+                    dot_bracket, mfe = fc.mfe()
+                    center = flank
+                    is_in_loop = dot_bracket[center] == "." if center < len(dot_bracket) else False
+                    orig_idx = valid_idx_filtered[seq_i]
+                    batch_results[orig_idx] = (dot_bracket, float(mfe), is_in_loop)
+                except Exception as e:
+                    logger.warning("ViennaRNA folding error: %s", e)
+
+        elif valid_seqs and not use_python_api:
             try:
                 input_text = "\n".join(valid_seqs)
                 result = subprocess.run(
@@ -202,12 +223,8 @@ def predict_structures_for_windows(genome, sites_df: pd.DataFrame,
                                         pass
                                     break
 
-                        # Check if center position is in a loop
                         center = flank
-                        is_in_loop = False
-                        if dot_bracket and center < len(dot_bracket):
-                            is_in_loop = dot_bracket[center] == "."
-
+                        is_in_loop = dot_bracket[center] == "." if dot_bracket and center < len(dot_bracket) else False
                         orig_idx = valid_idx_filtered[struct_idx]
                         batch_results[orig_idx] = (dot_bracket, mfe, is_in_loop)
                         struct_idx += 1
@@ -231,6 +248,8 @@ def main():
                         help="Batch size for RNAfold in Tier 3")
     parser.add_argument("--max-tier1-per-gene", type=int, default=500,
                         help="Max Tier 1 negatives per gene (to avoid huge imbalance)")
+    parser.add_argument("--max-tier3-candidates", type=int, default=20000,
+                        help="Max Tier 2 sites to fold for Tier 3 (speeds up pipeline)")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -239,7 +258,7 @@ def main():
 
     # Load genome
     from pyfaidx import Fasta
-    logger.info("Loading hg19 genome...")
+    logger.info("Loading hg38 genome...")
     genome = Fasta(str(GENOME_PATH))
     logger.info("Loaded %d chromosomes", len(genome.keys()))
 
@@ -393,12 +412,32 @@ def main():
     # -----------------------------------------------------------------------
     logger.info("\n=== Generating Tier 3 negatives (TC in stem-loops) ===")
 
-    if len(tier2_df) > 0 and RNAFOLD.exists():
+    # Check if ViennaRNA Python or RNAfold CLI is available
+    has_vienna_python = False
+    try:
+        import RNA
+        has_vienna_python = True
+    except ImportError:
+        pass
+    has_structure_tool = has_vienna_python or RNAFOLD.exists()
+
+    if len(tier2_df) > 0 and has_structure_tool:
+        # Sample a subset of Tier 2 for structure prediction (much faster)
+        if len(tier2_df) > args.max_tier3_candidates:
+            tier2_sample = tier2_df.sample(
+                n=args.max_tier3_candidates, random_state=rng
+            ).reset_index(drop=True)
+            logger.info("Sampled %d/%d Tier 2 sites for structure prediction",
+                        args.max_tier3_candidates, len(tier2_df))
+        else:
+            tier2_sample = tier2_df.copy()
+
         # Add genomic_pos column for structure prediction
-        tier2_for_struct = tier2_df.copy()
+        tier2_for_struct = tier2_sample.copy()
         tier2_for_struct["genomic_pos"] = tier2_for_struct["start"]
 
-        logger.info("Running RNAfold on %d Tier 2 sites...", len(tier2_for_struct))
+        tool_name = "ViennaRNA Python" if has_vienna_python else "RNAfold CLI"
+        logger.info("Running %s on %d Tier 2 sites...", tool_name, len(tier2_for_struct))
         structures = predict_structures_for_windows(
             genome, tier2_for_struct, batch_size=args.tier3_batch_size
         )
@@ -420,7 +459,7 @@ def main():
                     has_unpaired = any(c == "." for c in local)
                     if has_paired and has_unpaired:
                         # In or near a stem-loop
-                        row = tier2_df.iloc[i].to_dict()
+                        row = tier2_sample.iloc[i].to_dict()
                         row["site_id"] = f"T3_{row['chr']}_{row['start']}"
                         row["tier"] = 3
                         row["dot_bracket_center"] = dot_bracket[center] if center < len(dot_bracket) else ""
@@ -431,8 +470,8 @@ def main():
         logger.info("Tier 3: %d stem-loop TC-motif C positions", len(tier3_df))
     else:
         tier3_df = pd.DataFrame()
-        if not RNAFOLD.exists():
-            logger.warning("RNAfold not found; skipping Tier 3")
+        if not has_structure_tool:
+            logger.warning("Neither ViennaRNA Python nor RNAfold CLI found; skipping Tier 3")
         else:
             logger.warning("No Tier 2 sites; skipping Tier 3")
 

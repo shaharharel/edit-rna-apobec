@@ -544,8 +544,21 @@ class CachedRNAEncoder(nn.Module):
         pool_cache = self.pooled_edited_cache if edited else self.pooled_cache
 
         device = self._dummy.device
-        embeddings = torch.stack([tok_cache[sid].to(device) for sid in site_ids])
         pooled = torch.stack([pool_cache[sid].to(device) for sid in site_ids])
+
+        if tok_cache is not None:
+            tok_list = [tok_cache[sid].to(device) for sid in site_ids]
+            max_len = max(t.shape[0] for t in tok_list)
+            padded = []
+            for t in tok_list:
+                if t.shape[0] < max_len:
+                    pad = torch.zeros(max_len - t.shape[0], t.shape[1], device=device)
+                    t = torch.cat([t, pad], dim=0)
+                padded.append(t)
+            embeddings = torch.stack(padded)
+        else:
+            # Create dummy token embeddings (1 token per site) for pooled-only mode
+            embeddings = pooled.unsqueeze(1)
 
         return {"embeddings": embeddings, "pooled": pooled}
 

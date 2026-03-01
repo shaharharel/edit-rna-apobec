@@ -1,17 +1,20 @@
-"""Extract RNA sequences from hg19 and compute secondary structures.
+"""Extract RNA sequences and compute secondary structures.
 
 Processes both positive editing sites (editing_sites_labels.csv) and
 negative control sites (positive_negative_combined.csv).
 
 Supports two modes:
-- Local hg19 FASTA via pyfaidx (fast, preferred)
+- Local FASTA via pyfaidx (fast, preferred)
 - UCSC REST API fallback (slower, network-dependent)
+
+Default genome: hg38 (GRCh38). All coordinates in all_datasets_combined.csv
+are standardized to hg38.
 
 Output: data/processed/sequences_and_structures.csv
 
 Usage:
     python scripts/apobec/extract_sequences_and_structures.py
-    python scripts/apobec/extract_sequences_and_structures.py --genome data/raw/genomes/hg19.fa
+    python scripts/apobec/extract_sequences_and_structures.py --genome data/raw/genomes/hg38.fa
     python scripts/apobec/extract_sequences_and_structures.py --negatives  # also process negatives
 """
 
@@ -35,7 +38,7 @@ COMBINED_PATH = PROJECT_ROOT / "data" / "processed" / "advisor" / "positive_nega
 NEG_PATH = PROJECT_ROOT / "data" / "processed" / "advisor" / "negative_controls_ct.csv"
 SUPPTX_PATH = PROJECT_ROOT / "data" / "processed" / "advisor" / "supp_tx_all_non_ag_mm_sites.csv"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "sequences_and_structures.csv"
-DEFAULT_GENOME = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg19.fa"
+DEFAULT_GENOME = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg38.fa"
 RNAFOLD = Path("/opt/miniconda3/envs/vienna/bin/RNAfold")
 
 FLANK_SIZE = 100  # nt on each side -> 201nt total window
@@ -58,7 +61,7 @@ def dna_to_rna(seq: str) -> str:
 # ---------------------------------------------------------------------------
 
 class GenomeFetcher:
-    """Fetch sequences from hg19 -- local FASTA or UCSC REST API."""
+    """Fetch sequences from reference genome -- local FASTA or UCSC REST API."""
 
     def __init__(self, genome_path=None):
         self.genome = None
@@ -102,7 +105,7 @@ class GenomeFetcher:
     def _fetch_api(self, chrom: str, start: int, end: int,
                    retries: int = 3, delay: float = 0.5) -> str:
         """Fetch from UCSC REST API (0-based)."""
-        url = f"{UCSC_API_BASE}?genome=hg19;chrom={chrom};start={start};end={end}"
+        url = f"{UCSC_API_BASE}?genome=hg38;chrom={chrom};start={start};end={end}"
         for attempt in range(retries):
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -128,7 +131,7 @@ def extract_sequences(sites_df: pd.DataFrame, fetcher: GenomeFetcher,
     """Extract 201nt RNA sequences for all sites.
 
     For each site:
-    - Fetches ±flank nt genomic DNA from hg19
+    - Fetches ±flank nt genomic DNA from hg38
     - Applies strand-aware conversion (revcomp for - strand)
     - Converts DNA to RNA (T -> U)
     """
@@ -193,9 +196,48 @@ def extract_sequences(sites_df: pd.DataFrame, fetcher: GenomeFetcher,
 # ---------------------------------------------------------------------------
 
 def predict_structures_batch(sequences: list, batch_size: int = 50) -> list:
-    """Predict RNA secondary structures using RNAfold in batches."""
+    """Predict RNA secondary structures using ViennaRNA Python API.
+
+    Falls back to RNAfold CLI if ViennaRNA Python is not available.
+    """
+    try:
+        import RNA
+        return _predict_structures_python(sequences, batch_size)
+    except ImportError:
+        logger.info("ViennaRNA Python not available, trying RNAfold CLI...")
+        return _predict_structures_cli(sequences, batch_size)
+
+
+def _predict_structures_python(sequences: list, batch_size: int = 50) -> list:
+    """Predict structures using ViennaRNA Python API (import RNA)."""
+    import RNA
+
+    md = RNA.md()
+    md.temperature = 37.0
+
+    all_results = []
+    for i, seq in enumerate(sequences):
+        if not seq or str(seq) == "nan":
+            all_results.append({"dot_bracket": "", "mfe": np.nan})
+            continue
+        try:
+            fc = RNA.fold_compound(str(seq), md)
+            structure, mfe = fc.mfe()
+            all_results.append({"dot_bracket": structure, "mfe": float(mfe)})
+        except Exception as e:
+            logger.warning("ViennaRNA folding error for seq %d: %s", i, e)
+            all_results.append({"dot_bracket": "", "mfe": np.nan})
+
+        if (i + 1) % 200 == 0 or i + 1 == len(sequences):
+            logger.info("Predicted structures for %d/%d", i + 1, len(sequences))
+
+    return all_results
+
+
+def _predict_structures_cli(sequences: list, batch_size: int = 50) -> list:
+    """Predict structures using RNAfold CLI (fallback)."""
     if not RNAFOLD.exists():
-        logger.error("RNAfold not found at %s", RNAFOLD)
+        logger.error("RNAfold not found at %s and ViennaRNA Python not available", RNAFOLD)
         return [{"dot_bracket": "", "mfe": np.nan}] * len(sequences)
 
     all_results = []
@@ -302,7 +344,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract RNA sequences and structures for editing sites")
     parser.add_argument("--genome", type=Path, default=DEFAULT_GENOME,
-                        help="Path to hg19 FASTA (default: data/raw/genomes/hg19.fa)")
+                        help="Path to genome FASTA (default: data/raw/genomes/hg38.fa)")
     parser.add_argument("--batch-size", type=int, default=50,
                         help="Batch size for RNAfold")
     parser.add_argument("--negatives", action="store_true",
@@ -355,7 +397,7 @@ def main():
     logger.info("Total sites to process: %d", len(sites))
 
     # Step 1: Extract sequences
-    logger.info("Extracting 201nt genomic windows from hg19...")
+    logger.info("Extracting 201nt genomic windows...")
     seq_df = extract_sequences(sites, fetcher, strand_map)
     n_success = (seq_df["sequence_201nt"] != "").sum()
     logger.info("Successfully extracted %d/%d sequences", n_success, len(seq_df))

@@ -46,6 +46,10 @@ class EditRNAConfig:
     d_model: int = 640  # 640 for RNA-FM, 128 for UTR-LM
     finetune_last_n: int = 0
 
+    # Architecture variants
+    local_window: int = 0  # If > 0, slice tokens to center ± local_window (e.g., 10 = 21 tokens)
+    pooled_only: bool = False  # If True, skip token-level attention; use only pooled representations
+
     # Secondary encoder (optional)
     use_dual_encoder: bool = False
     secondary_encoder: str = "utrlm"
@@ -343,22 +347,61 @@ class EditRNA_A3A(nn.Module):
 
         # --- Step 1: Encode original sequences ---
         primary_out = self._encode_primary(sequences, site_ids=site_ids, edited=False)
-        f_background = primary_out["tokens"]   # (B, L, d_model)
         primary_pooled = primary_out["pooled"]  # (B, d_model)
 
-        # --- Step 2: Encode edited sequences (C->U) ---
-        edited_sequences = self._make_edited_sequences(sequences, edit_pos)
-        edited_out = self._encode_primary(edited_sequences, site_ids=site_ids, edited=True)
-        f_edited = edited_out["tokens"]
+        cfg = self.config
 
-        # Align lengths (should match for single-nucleotide edits)
-        min_len = min(f_background.shape[1], f_edited.shape[1])
-        f_background = f_background[:, :min_len, :]
-        f_edited = f_edited[:, :min_len, :]
+        if cfg.pooled_only:
+            # Pooled-only mode: create minimal 1-token "sequences" from pooled
+            f_background = primary_pooled.unsqueeze(1)  # (B, 1, d_model)
+            edited_sequences = self._make_edited_sequences(sequences, edit_pos)
+            edited_out = self._encode_primary(edited_sequences, site_ids=site_ids, edited=True)
+            f_edited = edited_out["tokens"][:, :1, :] if edited_out["tokens"].dim() == 3 else edited_out["pooled"].unsqueeze(1)
+            # Rewrite edit_pos to 0 (the only token position)
+            edit_pos = torch.zeros_like(edit_pos)
+            seq_mask = torch.ones(f_background.shape[0], 1, dtype=torch.bool, device=device)
+        else:
+            f_background = primary_out["tokens"]   # (B, L, d_model)
 
-        seq_mask = torch.ones(
-            f_background.shape[0], min_len, dtype=torch.bool, device=device
-        )
+            # --- Step 2: Encode edited sequences (C->U) ---
+            edited_sequences = self._make_edited_sequences(sequences, edit_pos)
+            edited_out = self._encode_primary(edited_sequences, site_ids=site_ids, edited=True)
+            f_edited = edited_out["tokens"]
+
+            # Align lengths (should match for single-nucleotide edits)
+            min_len = min(f_background.shape[1], f_edited.shape[1])
+            f_background = f_background[:, :min_len, :]
+            f_edited = f_edited[:, :min_len, :]
+
+            # Apply local window if configured
+            if cfg.local_window > 0:
+                w = cfg.local_window
+                centers = edit_pos.clamp(0, min_len - 1).long()
+                # Compute per-sample window bounds
+                starts = (centers - w).clamp(min=0)
+                ends = (centers + w + 1).clamp(max=min_len)
+                # Use the maximum window across the batch for uniform tensor
+                max_window = 2 * w + 1
+                B, _, D = f_background.shape
+                f_bg_windowed = torch.zeros(B, max_window, D, device=device)
+                f_ed_windowed = torch.zeros(B, max_window, D, device=device)
+                mask_windowed = torch.zeros(B, max_window, dtype=torch.bool, device=device)
+                for i in range(B):
+                    s, e = int(starts[i]), int(ends[i])
+                    length = e - s
+                    f_bg_windowed[i, :length] = f_background[i, s:e]
+                    f_ed_windowed[i, :length] = f_edited[i, s:e]
+                    mask_windowed[i, :length] = True
+                f_background = f_bg_windowed
+                f_edited = f_ed_windowed
+                seq_mask = mask_windowed
+                # Adjust edit_pos relative to window start
+                edit_pos = (centers - starts).long()
+                min_len = max_window
+            else:
+                seq_mask = torch.ones(
+                    f_background.shape[0], min_len, dtype=torch.bool, device=device
+                )
 
         # --- Step 3: Secondary encoder (optional) ---
         f_background_secondary = None
@@ -390,6 +433,10 @@ class EditRNA_A3A(nn.Module):
             structure_pooled = gnn_pooled
         elif contact_pooled is not None:
             structure_pooled = contact_pooled
+
+        # Allow external features (e.g. hand features) via gnn_emb slot
+        if structure_pooled is None and "hand_features" in batch:
+            structure_pooled = batch["hand_features"]
 
         # --- Step 6: APOBEC edit embedding ---
         edit_emb = self.edit_embedding(
