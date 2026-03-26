@@ -127,6 +127,9 @@ reports/
 # Old planning docs (superseded)
 plan_status.md
 
+# Paper drafts and reviews (private)
+paper/
+
 # HTML reports (regenerable)
 *.html
 
