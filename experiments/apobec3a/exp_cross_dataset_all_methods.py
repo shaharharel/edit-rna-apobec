@@ -40,7 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from experiments.apobec.train_baselines import (
+from experiments.apobec3a.train_baselines import (
     BaselineConfig,
     EmbeddingDataset,
     FocalLoss,
@@ -49,7 +49,7 @@ from experiments.apobec.train_baselines import (
     embedding_collate_fn,
     _forward_baseline,
 )
-from experiments.apobec.train_gradient_boosting import (
+from experiments.apobec3a.train_gradient_boosting import (
     extract_motif_features,
     extract_structure_delta_features,
     extract_loop_position_features,
@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "cross_dataset_all_methods"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "cross_dataset_all_methods"
 
 DATASETS = ["advisor_c2t", "asaoka_2019", "sharma_2015", "alqassim_2021"]
 DATASET_LABELS = {

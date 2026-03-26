@@ -38,13 +38,13 @@ logger = logging.getLogger(__name__)
 # Paths
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 TIER3_CSV = PROJECT_ROOT / "data" / "processed" / "negatives_tier3.csv"
-GENOME_FA = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg19.fa"
+GENOME_FA = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg38.fa"
 REFGENE = PROJECT_ROOT / "data" / "raw" / "genomes" / "refGene.txt"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = PROJECT_ROOT / "data" / "processed" / "embeddings" / "vienna_structure_cache.npz"
-LOOP_CSV = (PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+LOOP_CSV = (PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
             / "loop_position" / "loop_position_per_site.csv")
-OUTPUT_DIR = (PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+OUTPUT_DIR = (PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
               / "struct_neg_comparison")
 
 CENTER = 100

@@ -49,7 +49,7 @@ from torch.utils.data import Dataset, DataLoader
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +62,11 @@ SPLITS_A3A_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 SEQUENCES_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCTURE_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 LOOP_POSITION_CSV = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "loop_position"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "loop_position"
     / "loop_position_per_site.csv"
 )
 OUTPUT_DIR = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "cross_dataset_full"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "cross_dataset_full"
 )
 
 DATASET_SOURCES = ["advisor_c2t", "asaoka_2019", "alqassim_2021"]

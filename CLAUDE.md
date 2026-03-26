@@ -71,12 +71,26 @@ tests/         # Unit tests
 ```
 src/                       # Core library (data loaders, embedders, models, utils)
 ├── data/                  # Data loading, datasets, sequence utils
+│   ├── apobec_feature_extraction.py  # Enzyme-agnostic feature extraction (motif, loop, structure)
+│   ├── apobec_dataset.py             # Dataset loading and preprocessing
+│   ├── feature_sets.py               # Feature set definitions
+│   └── editing_sites.py              # Editing site data structures
 ├── embedding/             # RNA embedders (RNA-FM, RNABERT, edit embedders, structure)
 ├── models/                # Neural architectures, predictors, trainer, GNN
+│   └── baselines/         # Baseline models (PooledMLP, SubtractionMLP, etc.)
 └── utils/                 # Splits, metrics, caching, logging
 
-experiments/apobec3a/      # APOBEC3A experiments + HTML report
-scripts/apobec3a/          # APOBEC3A data preprocessing scripts
+experiments/
+├── apobec3a/              # APOBEC3A experiments + HTML report (v3_report.html)
+├── apobec3b/              # APOBEC3B experiments (classification, ClinVar)
+├── apobec3g/              # APOBEC3G experiments (classification, ClinVar)
+├── multi_enzyme/          # Cross-enzyme comparison report (multi_enzyme_report.html)
+└── apobec4/               # APOBEC4 exploratory analysis
+
+scripts/
+├── apobec3a/              # APOBEC3A data preprocessing scripts
+└── multi_enzyme/          # Multi-enzyme dataset building, negatives, structure
+
 data/                      # Raw and processed datasets
 tests/                     # Unit tests
 ```
@@ -86,8 +100,10 @@ tests/                     # Unit tests
 ## Key Patterns
 
 - **Embedders**: Inherit from base classes in `src/embedding/`
-- **Experiments**: Config-driven, placed in `experiments/apobec3a/`
-- **Preprocessing**: Scripts go in `scripts/apobec3a/`
+- **Experiments**: Config-driven, enzyme-namespaced: `experiments/apobec3a/`, `experiments/apobec3b/`, `experiments/apobec3g/`
+- **Preprocessing**: Scripts in `scripts/apobec3a/` (A3A pipeline) and `scripts/multi_enzyme/` (cross-enzyme dataset)
+- **Feature extraction**: `src/data/apobec_feature_extraction.py` provides enzyme-agnostic feature computation (motif, loop geometry, structure delta) used by all per-enzyme experiments
+- **Multi-enzyme report**: `experiments/multi_enzyme/generate_html_report.py` aggregates results from all per-enzyme experiments into a unified comparison report
 
 ---
 
@@ -109,25 +125,44 @@ This extracts all raw datasets into `data/raw/`:
 - `baysal_2016/` (supplementary tables, ~4,200 sites)
 - `levanon/tissue_editing_rates.csv` (54 GTEx tissue rates, pre-extracted from advisor T1 sheet)
 
-### Step 2: Download reference genome
+### Step 2: Download reference genome (hg38)
 
 ```bash
 mkdir -p data/raw/genomes && cd data/raw/genomes
-wget https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz && gunzip hg19.fa.gz
-wget https://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz && gunzip refGene.txt.gz
-python -c "from pyfaidx import Fasta; Fasta('hg19.fa')"
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz && gunzip hg38.fa.gz
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/refGene.txt.gz && gunzip refGene.txt.gz
+python -c "from pyfaidx import Fasta; Fasta('hg38.fa')"
 cd ../../..
 ```
 
-### Step 3: Set up conda environment and regenerate data
+### Step 3: Set up conda environment, generate data, and run the APOBEC3A analysis
 
 ```bash
 conda activate quris
 pip install -r requirements.txt
 ```
 
-Then run the full pipeline. See **`data_generation.md`** for the complete step-by-step
-guide with all commands, dependencies, and expected outputs.
+**Phase 1 — Data pipeline** (stages 1-7, see `data_generation.md`):
+```bash
+# Run all data preprocessing steps (parsing, sequences, embeddings, structure cache)
+# Full instructions with expected outputs in data_generation.md
+```
+
+**Phase 2 — APOBEC3A analysis** (all experiments → `v3_report.html`):
+```bash
+# Run all experiments in the correct dependency order
+bash scripts/apobec3a/run_experiments.sh
+
+# Or skip slow steps (ClinVar ~4.5h, neural models ~2h) for a quick first pass:
+bash scripts/apobec3a/run_experiments.sh --skip-slow
+```
+
+The script enforces the correct execution order (see below) and outputs
+`experiments/apobec3a/outputs/v3_report.html` as the final deliverable.
+
+> **⚠️ Do not run experiments manually in arbitrary order.** Several experiments
+> produce intermediate files that later experiments silently depend on. See
+> "Experiment Execution Order" below and `data_generation.md` for full details.
 
 ---
 
@@ -157,15 +192,58 @@ guide with all commands, dependencies, and expected outputs.
 
 ---
 
+## Experiment Execution Order
+
+All experiments under `experiments/apobec3a/` are part of the APOBEC3A RNA editing analysis.
+They feed into a single HTML report (`v3_report.html`). **Order matters.**
+
+```
+exp_loop_position_analysis          ← MUST run first; produces loop_position_per_site.csv
+    ↓
+exp_classification_a3a_5fold        ← uses loop_position_per_site.csv (GB hand features)
+exp_rate_5fold_zscore               ← uses loop_position_per_site.csv
+exp_rate_feature_importance         ← uses loop_position_per_site.csv
+    ↓
+exp_structure_analysis              ← independent (any order after loop_position)
+exp_motif_analysis
+exp_cross_dataset_full
+exp_rnasee_comparison
+exp_tc_motif_reanalysis
+exp_dataset_deep_analysis
+exp_embedding_viz_v2
+exp_a3a_filtered
+    ↓
+exp_clinvar_prediction              ← ~4.5 hours; produces clinvar_all_scores.csv
+    ↓
+exp_clinvar_calibrated              ← depends on clinvar_all_scores.csv
+replicate_rnasee_cds.py             ← depends on clinvar_all_scores.csv
+    ↓
+generate_html_report.py             ← final output: v3_report.html
+```
+
+Use `bash scripts/apobec3a/run_experiments.sh` to run in the correct order automatically.
+
+### Why loop_position must run first
+
+`exp_classification_a3a_5fold.py` calls `load_all_data()` which checks
+`if LOOP_POS_CSV.exists()` and silently uses an empty DataFrame if the file is missing.
+This causes all 9 loop geometry features (is_unpaired, relative_loop_position, etc.) to be
+zero-vectors. **No error is raised.** The model trains on motif+struct only:
+- GB_HandFeatures AUROC drops from 0.923 → 0.908
+- `relative_loop_position` (the #1 classifier feature) shows 0.000 importance
+- The bug is invisible until you check the feature importance CSV
+
+---
+
 ## Current Status (Mar 2026)
 
 ### What's Done
 
 | Area | Status | Key Result |
 |------|--------|------------|
-| **Data pipeline** | Complete | 7 raw datasets → unified splits, embeddings, structure cache. Fully reproducible from raw data via `rebuild_pipeline_hg38.sh` |
-| **Binary classification** | Complete | 13 models, 5-fold CV on 8,153 A3A sites. GB_Full and EditRNA-A3A are top performers |
-| **Rate prediction** | Complete | 6 models, 5-fold CV on 4,462 positives. GB_HandFeatures best (Spearman=0.407). Loop geometry features dominate |
+| **Data pipeline** | Complete | 7 raw datasets → unified splits, embeddings, structure cache. Reproducible from raw data via `data_generation.md` + `run_experiments.sh` |
+| **Binary classification** | Complete | 13 models, 5-fold CV on 8,153 A3A sites. EditRNA+Features AUROC=0.935, GB_HandFeatures AUROC=0.923 |
+| **Rate prediction** | Complete | 6 models, 5-fold CV on 4,462 positives. GB_HandFeatures best (Spearman=0.122). Loop geometry features dominate |
 | **Cross-dataset generalization** | Complete | Poor off-diagonal Spearman — rate distributions differ fundamentally across datasets |
 | **ClinVar pathogenicity** | Complete | GB_Full shows significant pathogenic enrichment (OR=1.33, p<1e-40). RNAsee's RF shows only marginal (OR=1.08). Rules-based is depleted |
 | **Prior calibration** | Complete | Bayesian recalibration confirms enrichment is real, not a training-prior artifact |
@@ -174,22 +252,39 @@ guide with all commands, dependencies, and expected outputs.
 
 ### Key Findings
 
-1. **Structure > sequence for editing prediction**: Loop geometry features (especially `local_unpaired_fraction`) account for ~70% of feature importance in gradient boosting models. Sites in unpaired loop regions are strongly favored for editing.
-2. **GB outperforms neural models on rate**: Hand-crafted structure features in gradient boosting (Spearman=0.407) beat end-to-end neural approaches (EditRNA Spearman=0.28). The signal is low-dimensional and structure-driven.
-3. **GB is the only model with real ClinVar signal**: At P>=0.5, GB_Full shows OR=1.33 for pathogenic enrichment — RNAsee's rules-based approach actually shows pathogenic *depletion* (OR=0.76).
+1. **Structure > sequence for editing prediction**: `relative_loop_position` is the #1 classifier feature (0.213 importance), followed by motif features. Sites in unpaired loop regions are strongly favored for editing.
+2. **GB outperforms neural models on rate**: Hand-crafted structure features in gradient boosting (Spearman=0.122) beat end-to-end neural approaches (EditRNA Spearman=0.137 but R²=-0.049 due to Sigmoid bug). The signal is low-dimensional and structure-driven.
+3. **GB is the only model with real ClinVar signal**: At P≥0.5, GB_Full shows OR=1.279 (p<1e-138) for pathogenic enrichment — RNAsee's rules-based approach shows pathogenic *depletion* (OR=0.76).
 4. **Cross-dataset rate prediction fails**: Models trained on one dataset do not generalize to others. This reflects genuinely different rate distributions (tissue-specific, enzyme-expression-dependent), not model failure.
 5. **Prior calibration validates the signal**: After Bayesian recalibration from π_model=0.50 to π_real=0.019 (Tier 1), pathogenic enrichment persists at calibrated thresholds.
 
 ### What's Next
 
+- **Per-enzyme experiments (A3B, A3G)**: Code created in `experiments/apobec3b/` and `experiments/apobec3g/`. Requires running: generate negatives, classification, ClinVar scoring. See `plan.md` for execution order.
+- **Updated multi-enzyme report**: `experiments/multi_enzyme/generate_html_report.py` updated with classification, feature importance, ClinVar, and clinical interpretation sections. Regenerate after per-enzyme experiments complete.
 - Edit effect framework validation (edit embeddings vs subtraction baseline)
-- Extension to other APOBEC enzymes (3B, 3G) — directory structure is ready (`experiments/apobec3a/` namespaced)
 - Deeper tissue-specific modeling using Levanon 54-tissue rates
 - Paper writing
 
 ---
 
 ## Technical Notes & Pitfalls
+
+### Experiment Execution Pitfalls (Silent Bugs)
+
+1. **loop_position must run before classifiers** — see "Experiment Execution Order" above.
+   If `loop_position_per_site.csv` is missing, all loop geometry features are silently zero.
+   Symptom: `relative_loop_position` shows 0.000 importance, GB_HandFeatures AUROC ~0.908.
+
+2. **ClinVar training: TC motif fraction must match between pos and neg**.
+   Tier2/tier3 negatives are 99.9% TC; positives are 86.1% TC. Training with this imbalance
+   inverts the TC signal (model learns TC → negative). Use hybrid negatives via
+   `scripts/apobec3a/retrain_clinvar_and_rescore.py` which matches TC% between pos/neg.
+
+3. **EditRNA_rate Sigmoid bug**: `APOBECMultiTaskHead.rate_head` ends with `nn.Sigmoid()`,
+   bounding output to (0,1). Z-scored targets range ~[-3, +3], so MSE is miscalibrated.
+   The model gets positive Spearman by preserving rank order but R²=-0.049 (worse than mean).
+   Fix: remove `nn.Sigmoid()` from rate_head. Not applied yet — reference report uses the bug.
 
 ### Critical Data Rules
 - **NEVER include negatives in rate regression**: `is_edited == 1` only. Previous bug with `editing_rate_normalized.notna()` let negatives (rate=0) in, inflating Spearman from 0.21 → 0.82.

@@ -345,6 +345,7 @@ def _batch_encode(encoder, site_ids, sequences, batch_size, device,
 
 def merge_embedding_caches(existing_dir: Path, new_embeddings: dict):
     """Merge new embeddings into existing cache files."""
+    existing_dir.mkdir(parents=True, exist_ok=True)
     for key, new_data in new_embeddings.items():
         if not new_data:
             continue

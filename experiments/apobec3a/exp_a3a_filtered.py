@@ -63,7 +63,7 @@ EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "a3a_filtered"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "a3a_filtered"
 
 
 # ---------------------------------------------------------------------------

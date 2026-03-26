@@ -85,7 +85,7 @@ class BaselineConfig:
 
     # Output
     output_dir: str = str(
-        PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines"
+        PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines"
     )
 
 
@@ -640,7 +640,7 @@ def main():
     parser.add_argument("--splits-csv", type=str,
                         default=str(PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"))
     parser.add_argument("--output-dir", type=str,
-                        default=str(PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines"))
+                        default=str(PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines"))
     parser.add_argument("--evaluate-only", action="store_true")
     args = parser.parse_args()
 

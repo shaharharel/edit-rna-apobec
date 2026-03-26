@@ -55,14 +55,14 @@ ALLC_NEG_CSV = PROJECT_ROOT / "data" / "processed" / "negatives_per_dataset_all_
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = PROJECT_ROOT / "data" / "processed" / "embeddings" / "vienna_structure_cache.npz"
 LOOP_POS_CSV = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
     / "loop_position" / "loop_position_per_site.csv"
 )
 CLINVAR_CSV = PROJECT_ROOT / "data" / "processed" / "clinvar_c2u_variants.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "clinvar_prediction"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "clinvar_prediction"
 
 SEED = 42
-N_WORKERS = 10  # Leave 4 cores free on 14-core machine
+N_WORKERS = 12  # Leave 4 cores free on 16-core machine
 CHUNK_SIZE = 50_000  # Process ClinVar in chunks for progress + resume
 CENTER = 100  # Edit site in 201nt window (0-indexed)
 
@@ -519,32 +519,33 @@ def build_hand_46_for_known(site_ids, sequences, structure_delta, loop_df, basel
 # ---------------------------------------------------------------------------
 
 def load_training_data():
-    """Load A3A positives + Asaoka all-C negatives for training.
+    """Load A3A positives + TC-context negatives (tier2/tier3) for training.
+
+    Uses tier2/tier3 negatives from splits_expanded_a3a.csv. These are TC-context
+    sites that are NOT edited, making the classification problem meaningful:
+    distinguishing edited TC sites from non-edited TC sites. This mirrors the
+    setup used for binary classification experiments and avoids trivial motif
+    separation (TC vs all-C) that inflates AUROC to ~1.0.
+
+    Note: For ClinVar scoring, run retrain_clinvar_and_rescore.py after this
+    experiment completes. That script uses a hybrid negative set that matches the
+    TC-motif rate of positives, preventing TC signal inversion on ClinVar variants.
 
     Returns DataFrame with site_id, label, dataset_source columns.
     """
     logger.info("Loading training data...")
 
-    # A3A positives from splits_expanded_a3a.csv
+    # A3A positives + tier2/tier3 negatives from splits_expanded_a3a.csv
     a3a_df = pd.read_csv(SPLITS_A3A_CSV)
     pos_df = a3a_df[a3a_df["is_edited"] == 1][["site_id", "is_edited", "dataset_source"]].copy()
     pos_df = pos_df.rename(columns={"is_edited": "label"})
     logger.info("  A3A positives: %d", len(pos_df))
 
-    # Asaoka negatives (all-cytidine, 1:3 ratio)
-    neg_df = pd.read_csv(ALLC_NEG_CSV)
-    asaoka_neg = neg_df[neg_df["dataset_source"] == "asaoka_2019"][
-        ["site_id", "is_edited", "dataset_source"]
-    ].copy()
-    asaoka_neg = asaoka_neg.rename(columns={"is_edited": "label"})
+    neg_df = a3a_df[a3a_df["is_edited"] == 0][["site_id", "is_edited", "dataset_source"]].copy()
+    neg_df = neg_df.rename(columns={"is_edited": "label"})
+    logger.info("  TC-context negatives (tier2/tier3): %d", len(neg_df))
 
-    # Subsample to 1:3 ratio
-    target_neg = len(pos_df) * 3
-    if len(asaoka_neg) > target_neg:
-        asaoka_neg = asaoka_neg.sample(n=target_neg, random_state=SEED)
-    logger.info("  Asaoka all-C negatives: %d", len(asaoka_neg))
-
-    combined = pd.concat([pos_df, asaoka_neg], ignore_index=True)
+    combined = pd.concat([pos_df, neg_df], ignore_index=True)
     logger.info("  Total training sites: %d (pos=%d, neg=%d)",
                 len(combined), (combined["label"] == 1).sum(),
                 (combined["label"] == 0).sum())
@@ -887,10 +888,10 @@ def run_phase1(train_df, sequences, structure_delta, loop_df, baseline_struct):
 
 def _extract_neg_sequences(neg_df, sequences):
     """Extract sequences for negative sites from genome (in-place update)."""
-    genome_path = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg19.fa"
+    genome_path = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg38.fa"
     if not genome_path.exists():
-        # Try hg38
-        genome_path = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg38.fa"
+        # Try hg19 (legacy)
+        genome_path = PROJECT_ROOT / "data" / "raw" / "genomes" / "hg19.fa"
     if not genome_path.exists():
         logger.warning("Genome not found, cannot extract negative sequences")
         return

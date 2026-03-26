@@ -46,10 +46,10 @@ logger = logging.getLogger(__name__)
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SEQUENCES_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCTURE_CACHE = PROJECT_ROOT / "data" / "processed" / "embeddings" / "vienna_structure_cache.npz"
-LOOP_POSITION_CSV = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "loop_position" / "loop_position_per_site.csv"
+LOOP_POSITION_CSV = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "loop_position" / "loop_position_per_site.csv"
 POOLED_ORIG_PT = PROJECT_ROOT / "data" / "processed" / "embeddings" / "rnafm_pooled.pt"
 POOLED_EDITED_PT = PROJECT_ROOT / "data" / "processed" / "embeddings" / "rnafm_pooled_edited.pt"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines" / "gradient_boosting"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines" / "gradient_boosting"
 
 
 # ---------------------------------------------------------------------------

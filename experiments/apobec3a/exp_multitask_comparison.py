@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "multitask_comparison"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "multitask_comparison"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",

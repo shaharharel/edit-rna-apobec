@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "loop_position"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "loop_position"
 
 EDIT_POS = 100  # 0-indexed center of 201nt window
 

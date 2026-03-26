@@ -581,7 +581,7 @@ def print_results_table(results: Dict, feature_set: str):
 def main():
     parser = argparse.ArgumentParser(description="Tabular baseline for APOBEC editing prediction")
     parser.add_argument("--output_dir", type=str,
-                        default=str(PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "tabular_baseline"))
+                        default=str(PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "tabular_baseline"))
     args = parser.parse_args()
 
     logging.basicConfig(

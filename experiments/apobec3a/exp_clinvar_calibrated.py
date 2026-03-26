@@ -263,9 +263,9 @@ def plot_original_vs_calibrated_or(df, pi_model, pi_real, label, output_dir):
     for bar, alpha in zip(bars, alphas):
         bar.set_alpha(alpha)
 
-    # Error bars
-    yerr_low = [o - cl for o, cl in zip(ors, ci_lows)]
-    yerr_high = [ch - o for o, ch in zip(ors, ci_highs)]
+    # Error bars (clip to non-negative to avoid matplotlib error with degenerate CIs)
+    yerr_low = [max(0.0, o - cl) for o, cl in zip(ors, ci_lows)]
+    yerr_high = [max(0.0, ch - o) for o, ch in zip(ors, ci_highs)]
     ax.errorbar(x, ors, yerr=[yerr_low, yerr_high], fmt="none", ecolor="black",
                 capsize=5, linewidth=1.5)
 
@@ -286,7 +286,8 @@ def plot_original_vs_calibrated_or(df, pi_model, pi_real, label, output_dir):
     ax.set_ylabel("Odds Ratio (Path+LP / Ben+LB)", fontsize=11)
     ax.set_title(f"Original vs Calibrated Enrichment ({label})\n"
                  f"π_model={pi_model:.2f}, π_real={pi_real:.4f}", fontsize=12)
-    ax.set_ylim(0, max(ci_highs) * 1.4 if ci_highs else 2.0)
+    finite_highs = [v for v in ci_highs if np.isfinite(v)]
+    ax.set_ylim(0, max(finite_highs) * 1.4 if finite_highs else 2.0)
     ax.grid(axis="y", alpha=0.2)
 
     plt.tight_layout()

@@ -260,7 +260,7 @@ def main():
     )
     parser.add_argument(
         "--genome", type=str, default=None,
-        help="Path to hg19.fa (default: data/raw/genomes/hg19.fa)"
+        help="Path to hg38.fa (default: data/raw/genomes/hg38.fa)"
     )
     parser.add_argument(
         "--seed", type=int, default=42,

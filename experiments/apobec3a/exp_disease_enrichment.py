@@ -42,9 +42,9 @@ SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SPLITS_A3A = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 NEG_TIER1 = PROJECT_ROOT / "data" / "processed" / "negatives_tier1.csv"
 CLINVAR_PATH = PROJECT_ROOT / "data" / "processed" / "clinvar_c2u_variants.csv"
-CALIBRATED_SCORES = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "clinvar_calibrated" / "clinvar_calibrated_scores.csv"
+CALIBRATED_SCORES = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "clinvar_calibrated" / "clinvar_calibrated_scores.csv"
 LEVANON_PATH = PROJECT_ROOT / "data" / "processed" / "advisor" / "t1_gtex_editing_&_conservation.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "disease_enrichment"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "disease_enrichment"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",

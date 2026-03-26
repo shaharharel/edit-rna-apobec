@@ -55,7 +55,7 @@ SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 LEVANON_TISSUE = PROJECT_ROOT / "data" / "raw" / "published" / "levanon" / "tissue_editing_rates.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "rate_deep_dive"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "rate_deep_dive"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",

@@ -390,11 +390,11 @@ class HEK293RateHead(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, 1),
-            nn.Sigmoid(),
+            # No Sigmoid: Z-scored targets range [-3, +3], not [0, 1]
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Returns (batch, 1) rate in [0, 1]."""
+        """Returns (batch, 1) unbounded rate prediction."""
         return self.head(x)
 
 

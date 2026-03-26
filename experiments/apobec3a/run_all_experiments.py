@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TRAIN_SCRIPT = PROJECT_ROOT / "experiments" / "apobec" / "train_baselines.py"
+TRAIN_SCRIPT = PROJECT_ROOT / "experiments" / "apobec3a" / "train_baselines.py"
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +242,7 @@ def main():
     parser.add_argument("--splits-csv", type=str,
                         default=str(PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"))
     parser.add_argument("--output-dir", type=str,
-                        default=str(PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines"))
+                        default=str(PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines"))
     parser.add_argument("--python", type=str, default=sys.executable,
                         help="Python interpreter to use")
     parser.add_argument("--aggregate-only", action="store_true",

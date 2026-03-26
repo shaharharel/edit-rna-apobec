@@ -59,7 +59,7 @@ EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "editrna_rate_reg"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "editrna_rate_reg"
 
 
 def compute_log2_rate(editing_rate):

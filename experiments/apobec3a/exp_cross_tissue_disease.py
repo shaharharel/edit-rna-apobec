@@ -40,7 +40,7 @@ ADVISOR_DIR = PROJECT_ROOT / "data" / "processed" / "advisor"
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 LABELS_CSV = PROJECT_ROOT / "data" / "processed" / "editing_sites_labels.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "cross_tissue_disease"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "cross_tissue_disease"
 
 
 def parse_tissue_rate(val):

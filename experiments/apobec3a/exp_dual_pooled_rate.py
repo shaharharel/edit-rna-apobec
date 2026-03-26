@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "dual_pooled_rate"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "dual_pooled_rate"
 
 
 # ---------------------------------------------------------------------------

@@ -86,7 +86,7 @@ COMBINED_CSV = PROJECT_ROOT / "data" / "processed" / "all_datasets_combined.csv"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "tc_motif_reanalysis"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "tc_motif_reanalysis"
 
 # Hard negatives (TC-motif matched, structure-matched) from the pipeline
 HARDNEG_CSV = PROJECT_ROOT / "data" / "processed" / "hardneg_per_dataset.csv"

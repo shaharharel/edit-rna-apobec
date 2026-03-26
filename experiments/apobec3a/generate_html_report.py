@@ -2494,13 +2494,16 @@ def gen_clinvar(data, classification_a3a=None):
         gb_only = cds_rep["gb_only_analysis"]
         n_gb_only = gb_only.get("n_gb_only", 0)
         n_rf_only = gb_only.get("n_rf_only", 0)
-        gb_enrich = gb_only.get("gb_only_enrichment", {})
+        gb_enrich = gb_only.get("gb_only_enrichment") or {}
 
         html.append("<h3>GB-Only Discovery</h3>")
+        gb_or = gb_enrich.get('or', 'N/A')
+        gb_p = gb_enrich.get('p', None)
+        gb_p_str = f"{gb_p:.1e}" if gb_p is not None else "N/A"
         html.append(f"""<p>At P&ge;0.5, GB_Full identifies <strong>{n_gb_only:,}</strong>
         variants that RF misses entirely (vs only {n_rf_only:,} RF-only). These GB-only
         predictions show pathogenic enrichment
-        (OR={gb_enrich.get('or', 'N/A')}, p={gb_enrich.get('p', 1):.1e}),
+        (OR={gb_or}, p={gb_p_str}),
         confirming that structural features detect clinically relevant editing sites
         invisible to sequence-only methods.</p>""")
 

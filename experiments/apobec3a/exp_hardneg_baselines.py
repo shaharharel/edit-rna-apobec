@@ -53,7 +53,7 @@ STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 HARDNEG_CSV = PROJECT_ROOT / "data" / "processed" / "hardneg_per_dataset.csv"
 HARDNEG_SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "hardneg_site_sequences.json"
 HARDNEG_STRUCT = EMB_DIR / "hardneg_vienna_structure.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "hardneg_baselines"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "hardneg_baselines"
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +321,7 @@ def train_and_evaluate(model_name, model, train_loader, val_loader, test_loader,
             optimizer.zero_grad()
 
             if is_editrna:
-                from experiments.apobec.exp_dataset_matrix_editrna import batch_to_device
+                from experiments.apobec3a.exp_dataset_matrix_editrna import batch_to_device
                 batch = batch_to_device(batch, torch.device("cpu"))
                 output = model(batch)
                 loss, _ = model.compute_loss(output, batch["targets"])
@@ -340,7 +340,7 @@ def train_and_evaluate(model_name, model, train_loader, val_loader, test_loader,
         with torch.no_grad():
             for batch in val_loader:
                 if is_editrna:
-                    from experiments.apobec.exp_dataset_matrix_editrna import batch_to_device
+                    from experiments.apobec3a.exp_dataset_matrix_editrna import batch_to_device
                     batch = batch_to_device(batch, torch.device("cpu"))
                 logits = get_model_prediction(model_name, model, batch)
                 probs = torch.sigmoid(logits).cpu().numpy()
@@ -376,7 +376,7 @@ def train_and_evaluate(model_name, model, train_loader, val_loader, test_loader,
     with torch.no_grad():
         for batch in test_loader:
             if is_editrna:
-                from experiments.apobec.exp_dataset_matrix_editrna import batch_to_device
+                from experiments.apobec3a.exp_dataset_matrix_editrna import batch_to_device
                 batch = batch_to_device(batch, torch.device("cpu"))
             logits = get_model_prediction(model_name, model, batch)
             probs = torch.sigmoid(logits).cpu().numpy()
@@ -674,7 +674,7 @@ def main():
                 if HARDNEG_SEQ_JSON.exists():
                     sequences.update(json.loads(HARDNEG_SEQ_JSON.read_text()))
 
-                from experiments.apobec.exp_dataset_matrix_editrna import build_samples
+                from experiments.apobec3a.exp_dataset_matrix_editrna import build_samples
 
                 data_config = APOBECDataConfig(window_size=100)
 

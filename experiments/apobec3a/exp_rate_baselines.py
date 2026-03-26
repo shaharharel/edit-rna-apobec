@@ -39,13 +39,13 @@ from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
 
 logger = logging.getLogger(__name__)
 
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "rate_baselines"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "rate_baselines"
 
 # Datasets that have editing rates
 RATE_DATASETS = {"advisor_c2t", "alqassim_2021", "sharma_2015"}

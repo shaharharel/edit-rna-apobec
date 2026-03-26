@@ -191,19 +191,18 @@ def load_sharma_dataset(path: Path) -> pd.DataFrame:
 
 
 def load_baysal_dataset(path: Path) -> pd.DataFrame:
-    """Load the Baysal 2016 dataset — use original hg38 coordinates.
+    """Load the Baysal 2016 dataset — native hg38 coordinates.
 
-    The parsed CSV has hg19 coordinates (via LiftOver in parse_baysal_2016.py)
-    and the original hg38 coordinates stored in hg38_chr/hg38_pos columns.
-    We use the hg38 originals directly.
+    parse_baysal_2016.py now outputs hg38 coordinates directly,
+    so we just read chr/start/end columns as-is.
     """
     df = pd.read_csv(path)
-    logger.info("Loaded Baysal 2016 dataset: %d sites (restoring native hg38)", len(df))
+    logger.info("Loaded Baysal 2016 dataset: %d sites (native hg38)", len(df))
 
     result = pd.DataFrame()
     result["site_id"] = df["site_id"].values
-    result["chr"] = df["hg38_chr"].values  # Use original hg38 chromosome
-    result["start"] = df["hg38_pos"].astype(int).values  # Use original hg38 position
+    result["chr"] = df["chr"].values
+    result["start"] = df["start"].astype(int).values
     result["end"] = result["start"] + 1
     result["strand"] = df["strand"].values
     result["gene"] = df["gene"].values

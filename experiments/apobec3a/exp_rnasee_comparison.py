@@ -79,7 +79,7 @@ POOLED_ORIG_PT = (
 POOLED_EDITED_PT = (
     PROJECT_ROOT / "data" / "processed" / "embeddings" / "rnafm_pooled_edited.pt"
 )
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "rnasee_comparison"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "rnasee_comparison"
 
 
 # ---------------------------------------------------------------------------

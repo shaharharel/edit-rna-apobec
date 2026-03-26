@@ -57,11 +57,11 @@ EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 STRUCTURE_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 SEQUENCES_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 LOOP_POS_CSV = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
     / "loop_position" / "loop_position_per_site.csv"
 )
 OUTPUT_DIR = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "rate_5fold_positives"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "rate_5fold_positives"
 )
 
 SEED = 42

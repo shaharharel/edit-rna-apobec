@@ -52,7 +52,7 @@ LOOP_CSV = (
     / "loop_position_per_site.csv"
 )
 OUTPUT_DIR = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "structure_enhanced"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "structure_enhanced"
 )
 
 CENTER = 100  # edit position in 201-nt window

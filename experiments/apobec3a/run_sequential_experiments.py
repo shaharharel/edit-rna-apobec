@@ -31,7 +31,7 @@ from pathlib import Path
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
 
 logger = logging.getLogger("runner")
 

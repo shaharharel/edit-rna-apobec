@@ -875,7 +875,7 @@ def print_summary(binary_results, rate_results, multiclass_results, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Experiment 0: Enhanced tabular baseline")
     parser.add_argument("--output_dir", type=str,
-                        default=str(PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "exp0_tabular"))
+                        default=str(PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "exp0_tabular"))
     args = parser.parse_args()
 
     logging.basicConfig(

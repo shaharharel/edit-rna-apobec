@@ -8,9 +8,8 @@ Identified 4,200+ APOBEC3A-mediated C-to-U RNA editing sites by
 transient overexpression of APOBEC3A in HEK293T cells.
 These sites are a subset of Asaoka 2019 (which found 4,933 A3A sites).
 
-IMPORTANT: Coordinates in the supplementary data are in GRCh38 (hg38).
-We use pyliftover to convert to hg19 coordinates for consistency with
-the rest of the project.
+NOTE: Coordinates in the supplementary data are in GRCh38 (hg38).
+The pipeline now uses hg38 throughout, so coordinates are kept as-is.
 
 Output:
   - data/processed/published/baysal_2016_editing_sites.csv
@@ -94,16 +93,16 @@ def liftover_hg38_to_hg19(chrom: str, pos: int, converter) -> tuple:
     return None, None
 
 
-def parse_editing_sites(path: Path, converter) -> pd.DataFrame:
+def parse_editing_sites(path: Path, converter=None) -> pd.DataFrame:
     """Parse Baysal 2016 supplementary table of C-to-U editing sites.
 
     The supplementary data contains columns for chromosome, position,
     strand, gene name, editing rates, and functional annotations.
-    Coordinates are in GRCh38 and are lifted over to hg19.
+    Coordinates are in GRCh38 (hg38) and are kept as-is (no liftover needed).
 
     Args:
         path: Path to the supplementary Excel file.
-        converter: pyliftover.LiftOver instance for hg38->hg19.
+        converter: Unused (kept for API compatibility).
     """
     # Try different sheet names (supplementary files vary)
     df = None
@@ -167,37 +166,12 @@ def parse_editing_sites(path: Path, converter) -> pd.DataFrame:
 
     # Original positions (1-based in supplementary data -> 0-based)
     positions_1based = df[col_map["pos"]].astype(int)
-    positions_0based_hg38 = positions_1based - 1
+    positions_0based = positions_1based - 1  # Convert to 0-based (native hg38)
 
-    # LiftOver from GRCh38 to hg19
-    logger.info("Performing LiftOver from GRCh38 to hg19 for %d sites...", len(df))
-    hg19_chroms = []
-    hg19_positions = []
-    liftover_failed = 0
-
-    for i, (chrom, pos) in enumerate(zip(chr_col, positions_0based_hg38)):
-        hg19_chr, hg19_pos = liftover_hg38_to_hg19(chrom, pos, converter)
-        hg19_chroms.append(hg19_chr)
-        hg19_positions.append(hg19_pos)
-        if hg19_chr is None:
-            liftover_failed += 1
-
-        if (i + 1) % 1000 == 0:
-            logger.info("  LiftOver progress: %d/%d (failed: %d)",
-                        i + 1, len(df), liftover_failed)
-
-    logger.info("LiftOver complete: %d succeeded, %d failed (%.1f%%)",
-                len(df) - liftover_failed, liftover_failed,
-                100 * liftover_failed / max(1, len(df)))
-
-    # Build result dataframe
+    # Build result dataframe — keep native hg38 coordinates
     result = pd.DataFrame()
-    result["hg19_chr"] = hg19_chroms
-    result["hg19_pos"] = hg19_positions
-
-    # Copy original data columns
-    result["hg38_chr"] = chr_col.values
-    result["hg38_pos"] = positions_0based_hg38.values
+    result["chr"] = chr_col.values
+    result["start"] = positions_0based.values
 
     # Strand
     if "strand" in col_map:
@@ -211,16 +185,10 @@ def parse_editing_sites(path: Path, converter) -> pd.DataFrame:
             result["strand"] = "+"
 
     # Gene
-    if "gene" in col_map:
-        result["gene"] = df[col_map["gene"]].values
-    else:
-        result["gene"] = ""
+    result["gene"] = df[col_map["gene"]].values if "gene" in col_map else ""
 
     # Feature / region
-    if "feature" in col_map:
-        result["feature"] = df[col_map["feature"]].values
-    else:
-        result["feature"] = "unknown"
+    result["feature"] = df[col_map["feature"]].values if "feature" in col_map else "unknown"
 
     # Editing rate
     if "editing_rate" in col_map:
@@ -236,20 +204,14 @@ def parse_editing_sites(path: Path, converter) -> pd.DataFrame:
     if "alt" in col_map:
         result["alt"] = df[col_map["alt"]].values
 
-    # Filter out failed liftover
-    valid_mask = result["hg19_chr"].notna()
-    n_dropped = (~valid_mask).sum()
-    result = result[valid_mask].copy()
-    logger.info("Dropped %d sites with failed LiftOver", n_dropped)
-
-    # Build standardized output
+    # Build standardized output (hg38 coordinates)
     output = pd.DataFrame()
-    output["chr"] = result["hg19_chr"]
-    output["start"] = result["hg19_pos"].astype(int)
+    output["chr"] = result["chr"]
+    output["start"] = result["start"].astype(int)
     output["end"] = output["start"] + 1
     output["strand"] = result["strand"]
 
-    # Site ID
+    # Site ID based on hg38 coordinates
     output["site_id"] = output.apply(
         lambda r: f"baysal_{r['chr']}_{r['start']}", axis=1
     )
@@ -261,17 +223,12 @@ def parse_editing_sites(path: Path, converter) -> pd.DataFrame:
     output["dataset_source"] = "baysal_2016"
     output["editing_rate"] = result["editing_rate"]
 
-    # Preserve original hg38 coordinates for reference
-    output["hg38_chr"] = result["hg38_chr"]
-    output["hg38_pos"] = result["hg38_pos"]
-
-    # Deduplicate by hg19 coordinate
+    # Deduplicate by hg38 coordinate
     n_before = len(output)
     output = output.drop_duplicates(subset=["chr", "start"], keep="first")
     n_dedup = n_before - len(output)
     if n_dedup > 0:
-        logger.info("Removed %d duplicate sites after LiftOver (same hg19 coordinate)",
-                    n_dedup)
+        logger.info("Removed %d duplicate sites (same hg38 coordinate)", n_dedup)
 
     return output
 
@@ -309,21 +266,8 @@ def main():
         )
         sys.exit(1)
 
-    # Initialize LiftOver converter (hg38 -> hg19)
-    try:
-        from pyliftover import LiftOver
-    except ImportError:
-        logger.error(
-            "pyliftover is required for coordinate conversion. "
-            "Install with: pip install pyliftover"
-        )
-        sys.exit(1)
-
-    logger.info("Initializing LiftOver (hg38 -> hg19)...")
-    converter = LiftOver("hg38", "hg19")
-
-    # Parse editing sites
-    sites = parse_editing_sites(input_path, converter)
+    # Parse editing sites (native hg38 coordinates, no liftover needed)
+    sites = parse_editing_sites(input_path)
 
     if len(sites) == 0:
         logger.error("No editing sites parsed!")
@@ -337,7 +281,7 @@ def main():
 
     # Summary statistics
     logger.info("\n=== Baysal 2016 Summary ===")
-    logger.info("Total C-to-U sites (after LiftOver + dedup): %d", len(sites))
+    logger.info("Total C-to-U sites (after dedup): %d", len(sites))
     logger.info("Strand distribution:")
     for strand, count in sites["strand"].value_counts().items():
         logger.info("  %s: %d", strand, count)

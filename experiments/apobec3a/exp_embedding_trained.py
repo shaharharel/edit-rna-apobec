@@ -46,8 +46,8 @@ logger = logging.getLogger(__name__)
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-MODEL_PATH = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines" / "editrna" / "best_model.pt"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "embedding_trained"
+MODEL_PATH = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines" / "editrna" / "best_model.pt"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "embedding_trained"
 
 DATASET_LABELS = {
     "advisor_c2t": "Advisor",

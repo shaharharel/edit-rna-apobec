@@ -35,7 +35,7 @@ EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded_a3a.csv"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "structure_analysis"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "structure_analysis"
 
 DATASET_LABELS = {
     "advisor_c2t": "Advisor",

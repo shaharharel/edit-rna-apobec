@@ -49,7 +49,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
 
 from exp_cross_dataset_full import (
     extract_structure_delta_for_ids,
@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 OUTPUT_DIR = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "incremental_levanon"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "incremental_levanon"
 )
 
 NEGATIVE_SOURCES = ["tier2_negative", "tier3_negative"]

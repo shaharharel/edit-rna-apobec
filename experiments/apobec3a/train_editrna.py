@@ -78,7 +78,7 @@ class ExperimentConfig:
 
     # Experiment identity
     name: str = "apobec_editrna_v1"
-    output_dir: str = str(PROJECT_ROOT / "experiments" / "apobec" / "outputs")
+    output_dir: str = str(PROJECT_ROOT / "experiments" / "apobec3a" / "outputs")
 
     # Data
     labels_csv: str = str(PROJECT_ROOT / "data" / "processed" / "editing_sites_labels.csv")

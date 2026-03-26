@@ -60,7 +60,7 @@ EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 LABELS_CSV = PROJECT_ROOT / "data" / "processed" / "editing_sites_labels.csv"
 GTEX_CSV = PROJECT_ROOT / "data" / "processed" / "advisor" / "t1_gtex_editing_&_conservation.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "tissue_conditioned_rate"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "tissue_conditioned_rate"
 
 plt.rcParams.update({
     "font.size": 11,

@@ -40,7 +40,7 @@ from torch.utils.data import Dataset, DataLoader
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
 
 from exp_rate_gnn_fusion import (
     load_all_data, build_structure_graph_from_pairing, SmallStructureGNN,
@@ -55,7 +55,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "rate_gnn_endtoend"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "rate_gnn_endtoend"
 )
 SEED = 42
 SEEDS = (42, 123, 456)

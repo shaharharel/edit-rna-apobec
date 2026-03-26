@@ -53,7 +53,7 @@ HARDNEG_SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "hardneg_site_sequences
 HARDNEG_STRUCT_CACHE = EMB_DIR / "hardneg_vienna_structure.npz"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "hardneg_matrix"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "hardneg_matrix"
 
 DATASET_SOURCES = ["advisor_c2t", "asaoka_2019", "alqassim_2021", "sharma_2015", "baysal_2016"]
 DATASET_LABELS = {

@@ -124,10 +124,7 @@ reports/
 # Local/personal files
 # =============================================================================
 
-# Planning docs (local)
-PLAN_*.md
-*_PLAN.md
-plan.md
+# Old planning docs (superseded)
 plan_status.md
 
 # HTML reports (regenerable)

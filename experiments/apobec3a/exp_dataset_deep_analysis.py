@@ -33,7 +33,7 @@ COMBINED_CSV = PROJECT_ROOT / "data" / "processed" / "all_datasets_combined.csv"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 STRUCT_CACHE = PROJECT_ROOT / "data" / "processed" / "embeddings" / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "dataset_analysis"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "dataset_analysis"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",
@@ -245,7 +245,9 @@ def plot_rate_distributions(combined_df):
     # RIGHT: per-dataset Z-scored log2 rates (each dataset standardized independently)
     for ds_name, ds_label in ds_with_rates:
         ds_df = combined_df[combined_df["dataset_source"] == ds_name]
-        norm = pd.to_numeric(ds_df["editing_rate_normalized"], errors="coerce").dropna()
+        norm = pd.to_numeric(ds_df["editing_rate"], errors="coerce").dropna()
+        if ds_name in _PERCENT_SCALE:
+            norm = norm / 100.0
         norm = norm[norm > 0]
         if len(norm) > 0:
             log_rates = np.log2(norm.values + 0.01)

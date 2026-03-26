@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
 
 from train_baselines import (
     BaselineConfig,
@@ -36,9 +36,9 @@ logger = logging.getLogger(__name__)
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 EDITRNA_CKPT = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines" / "editrna" / "best_model.pt"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines" / "editrna" / "best_model.pt"
 )
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "binary_rate_correlation"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "binary_rate_correlation"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",
@@ -88,7 +88,7 @@ def load_editrna_model(config):
         # Fall back to SubtractionMLP (best pooled-only model)
         logger.warning("Token embeddings not found — using SubtractionMLP instead of EditRNA-A3A")
         from models.baselines.subtraction_mlp import SubtractionMLPBaseline
-        sub_ckpt = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines" / "subtraction_mlp" / "best_model.pt"
+        sub_ckpt = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines" / "subtraction_mlp" / "best_model.pt"
         model = SubtractionMLPBaseline()
         if sub_ckpt.exists():
             ckpt = torch.load(sub_ckpt, weights_only=False, map_location="cpu")

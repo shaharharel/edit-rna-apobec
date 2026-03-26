@@ -65,15 +65,19 @@ EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 STRUCTURE_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 SEQUENCES_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 LOOP_POS_CSV = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
     / "loop_position" / "loop_position_per_site.csv"
 )
 OUTPUT_DIR = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "classification_a3a_5fold"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "classification_a3a_5fold"
 )
 
 SEED = 42
 DEVICE = torch.device("cpu")
+# Per CLAUDE.md: "Skip DiffAttention in all experiments (25 min/fold, worst performer)"
+# Per CLAUDE.md: skip DiffAttention (25 min/fold, worst performer).
+# Also skip CrossAttention (600-1400s/fold) and PooledMLP/ConcatMLP (not in reference report).
+SKIP_MODELS = {"DiffAttention", "DiffAttention+Features", "CrossAttention", "PooledMLP", "ConcatMLP"}
 
 
 # ---------------------------------------------------------------------------
@@ -735,10 +739,11 @@ def run_experiment():
                  "precision": float("nan"), "recall": float("nan")})
 
         # ==============================================================
-        # 5. PooledMLP
+        # 5. PooledMLP  (skipped — not in reference report)
         # ==============================================================
-        logger.info("  [5/13] PooledMLP")
-        torch.manual_seed(fold_seed)
+        if "PooledMLP" not in SKIP_MODELS:
+            logger.info("  [5/13] PooledMLP")
+            torch.manual_seed(fold_seed)
 
         def _make_pooled_loaders(mode, hand_feat=None, bs=64):
             loaders = {}
@@ -753,12 +758,13 @@ def run_experiment():
                                            num_workers=0)
             return loaders
 
-        loaders = _make_pooled_loaders("orig_only")
-        model = BinaryMLP(d_input=640)
-        metrics = train_eval_binary(model, loaders["train"], loaders["val"], loaders["test"],
-                                    epochs=50, lr=1e-3, seed=fold_seed)
-        model_fold_results["PooledMLP"].append(metrics)
-        del model
+        if "PooledMLP" not in SKIP_MODELS:
+            loaders = _make_pooled_loaders("orig_only")
+            model = BinaryMLP(d_input=640)
+            metrics = train_eval_binary(model, loaders["train"], loaders["val"], loaders["test"],
+                                        epochs=50, lr=1e-3, seed=fold_seed)
+            model_fold_results["PooledMLP"].append(metrics)
+            del model
 
         # ==============================================================
         # 6. SubtractionMLP
@@ -773,27 +779,41 @@ def run_experiment():
         del model
 
         # ==============================================================
-        # 7. ConcatMLP
+        # 7. ConcatMLP  (skipped — not in reference report)
         # ==============================================================
-        logger.info("  [7/13] ConcatMLP")
-        torch.manual_seed(fold_seed)
-        loaders = _make_pooled_loaders("concat")
-        model = BinaryMLP(d_input=1280)
-        metrics = train_eval_binary(model, loaders["train"], loaders["val"], loaders["test"],
-                                    epochs=50, lr=1e-3, seed=fold_seed)
-        model_fold_results["ConcatMLP"].append(metrics)
-        del model, loaders
+        if "ConcatMLP" not in SKIP_MODELS:
+            logger.info("  [7/13] ConcatMLP")
+            torch.manual_seed(fold_seed)
+            loaders = _make_pooled_loaders("concat")
+            model = BinaryMLP(d_input=1280)
+            metrics = train_eval_binary(model, loaders["train"], loaders["val"], loaders["test"],
+                                        epochs=50, lr=1e-3, seed=fold_seed)
+            model_fold_results["ConcatMLP"].append(metrics)
+            del model
+        del loaders
 
         # ==============================================================
         # Token-level models (8-13) - load tokens
+        # (only needed if any token model is not skipped)
         # ==============================================================
-        logger.info("  Loading token embeddings...")
-        _to = torch.load(EMB_DIR / "rnafm_tokens.pt", weights_only=False)
-        tokens_orig = {k: v for k, v in _to.items() if str(k) in set(str(s) for s in all_site_ids)}
-        del _to; gc.collect()
-        _te = torch.load(EMB_DIR / "rnafm_tokens_edited.pt", weights_only=False)
-        tokens_edited = {k: v for k, v in _te.items() if str(k) in set(str(s) for s in all_site_ids)}
-        del _te; gc.collect()
+        _token_models_needed = (
+            "CrossAttention" not in SKIP_MODELS or
+            "DiffAttention" not in SKIP_MODELS or
+            "EditRNA-A3A" not in SKIP_MODELS or
+            "EditRNA+Features" not in SKIP_MODELS or
+            "DiffAttention+Features" not in SKIP_MODELS
+        )
+        tokens_orig = {}
+        tokens_edited = {}
+        tok_loaders = {}
+        if _token_models_needed:
+            logger.info("  Loading token embeddings...")
+            _to = torch.load(EMB_DIR / "rnafm_tokens.pt", weights_only=False)
+            tokens_orig = {k: v for k, v in _to.items() if str(k) in set(str(s) for s in all_site_ids)}
+            del _to; gc.collect()
+            _te = torch.load(EMB_DIR / "rnafm_tokens_edited.pt", weights_only=False)
+            tokens_edited = {k: v for k, v in _te.items() if str(k) in set(str(s) for s in all_site_ids)}
+            del _te; gc.collect()
 
         def _make_token_loaders(hand_feat=False, bs=16):
             loaders = {}
@@ -808,31 +828,33 @@ def run_experiment():
             return loaders
 
         # ==============================================================
-        # 8. CrossAttention
+        # 8. CrossAttention  (skipped — 600-1400s/fold, not in reference report)
         # ==============================================================
-        logger.info("  [8/13] CrossAttention")
-        torch.manual_seed(fold_seed)
-        tok_loaders = _make_token_loaders(hand_feat=False, bs=16)
-        model = CrossAttentionBinary()
-        metrics = train_eval_binary(model, tok_loaders["train"], tok_loaders["val"],
-                                    tok_loaders["test"], is_token_model=True,
-                                    epochs=30, lr=5e-4, weight_decay=1e-4, patience=8,
-                                    seed=fold_seed)
-        model_fold_results["CrossAttention"].append(metrics)
-        del model
+        if "CrossAttention" not in SKIP_MODELS:
+            logger.info("  [8/13] CrossAttention")
+            torch.manual_seed(fold_seed)
+            tok_loaders = _make_token_loaders(hand_feat=False, bs=16)
+            model = CrossAttentionBinary()
+            metrics = train_eval_binary(model, tok_loaders["train"], tok_loaders["val"],
+                                        tok_loaders["test"], is_token_model=True,
+                                        epochs=30, lr=5e-4, weight_decay=1e-4, patience=8,
+                                        seed=fold_seed)
+            model_fold_results["CrossAttention"].append(metrics)
+            del model
 
         # ==============================================================
-        # 9. DiffAttention
+        # 9. DiffAttention  (skipped per CLAUDE.md — 25 min/fold, worst performer)
         # ==============================================================
-        logger.info("  [9/13] DiffAttention")
-        torch.manual_seed(fold_seed)
-        model = DiffAttentionBinary()
-        metrics = train_eval_binary(model, tok_loaders["train"], tok_loaders["val"],
-                                    tok_loaders["test"], is_token_model=True,
-                                    epochs=30, lr=5e-4, weight_decay=1e-4, patience=8,
-                                    seed=fold_seed)
-        model_fold_results["DiffAttention"].append(metrics)
-        del model
+        if "DiffAttention" not in SKIP_MODELS:
+            logger.info("  [9/13] DiffAttention")
+            torch.manual_seed(fold_seed)
+            model = DiffAttentionBinary()
+            metrics = train_eval_binary(model, tok_loaders["train"], tok_loaders["val"],
+                                        tok_loaders["test"], is_token_model=True,
+                                        epochs=30, lr=5e-4, weight_decay=1e-4, patience=8,
+                                        seed=fold_seed)
+            model_fold_results["DiffAttention"].append(metrics)
+            del model
 
         # ==============================================================
         # 10. EditRNA-A3A
@@ -1097,26 +1119,34 @@ def run_experiment():
         del model
 
         # ==============================================================
-        # 13. DiffAttention+Features
+        # 13. DiffAttention+Features  (skipped per CLAUDE.md — worst performer)
         # ==============================================================
-        logger.info("  [13/13] DiffAttention+Features")
-        torch.manual_seed(fold_seed)
-        tok_loaders_feat = _make_token_loaders(hand_feat=True, bs=16)
-        model = DiffAttentionBinary(d_hand=d_hand_aug)
-        metrics = train_eval_binary(model, tok_loaders_feat["train"], tok_loaders_feat["val"],
-                                    tok_loaders_feat["test"], is_token_model=True,
-                                    epochs=30, lr=5e-4, weight_decay=1e-4, patience=8,
-                                    seed=fold_seed)
-        model_fold_results["DiffAttention+Features"].append(metrics)
-        del model
+        if "DiffAttention+Features" not in SKIP_MODELS:
+            logger.info("  [13/13] DiffAttention+Features")
+            torch.manual_seed(fold_seed)
+            tok_loaders_feat = _make_token_loaders(hand_feat=True, bs=16)
+            model = DiffAttentionBinary(d_hand=d_hand_aug)
+            metrics = train_eval_binary(model, tok_loaders_feat["train"], tok_loaders_feat["val"],
+                                        tok_loaders_feat["test"], is_token_model=True,
+                                        epochs=30, lr=5e-4, weight_decay=1e-4, patience=8,
+                                        seed=fold_seed)
+            model_fold_results["DiffAttention+Features"].append(metrics)
+            del model
 
         # Free token memory
-        del tokens_orig, tokens_edited, tok_loaders, tok_loaders_feat
+        del tokens_orig, tokens_edited, tok_loaders
+        try:
+            del tok_loaders_feat
+        except NameError:
+            pass
         gc.collect()
 
         # Log fold summary
         logger.info("\n  Fold %d summary:", fold_idx + 1)
         for name in MODEL_NAMES:
+            if not model_fold_results[name]:
+                logger.info("    %-30s  SKIPPED", name)
+                continue
             fr = model_fold_results[name][-1]
             auroc = fr.get("auroc", float("nan"))
             auprc = fr.get("auprc", float("nan"))

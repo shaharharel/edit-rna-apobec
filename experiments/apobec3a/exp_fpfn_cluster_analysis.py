@@ -33,9 +33,9 @@ LABELS_CSV = PROJECT_ROOT / "data" / "processed" / "editing_sites_labels.csv"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 EDITRNA_CKPT = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines" / "editrna" / "best_model.pt"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines" / "editrna" / "best_model.pt"
 )
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "iteration3"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "iteration3"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",
@@ -90,7 +90,7 @@ def compute_edit_diff_embeddings(pooled_orig, pooled_edited, site_ids):
 
 def get_predictions(splits_df, pooled_orig, pooled_edited, structure_delta):
     """Get EditRNA-A3A predictions on test set using the trained model."""
-    sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+    sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
     from train_baselines import (
         BaselineConfig,
         EmbeddingDataset,
@@ -135,7 +135,7 @@ def get_predictions(splits_df, pooled_orig, pooled_edited, structure_delta):
             logger.warning("Failed to load EditRNA checkpoint: %s, using subtraction_mlp", e)
             # Load subtraction_mlp checkpoint
             sub_ckpt = (
-                PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines"
+                PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines"
                 / "subtraction_mlp" / "best_model.pt"
             )
             if sub_ckpt.exists():
@@ -144,7 +144,7 @@ def get_predictions(splits_df, pooled_orig, pooled_edited, structure_delta):
             model_name_used = "subtraction_mlp"
     else:
         sub_ckpt = (
-            PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines"
+            PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines"
             / "subtraction_mlp" / "best_model.pt"
         )
         if sub_ckpt.exists():
@@ -192,7 +192,7 @@ def get_predictions(splits_df, pooled_orig, pooled_edited, structure_delta):
 
     # Get optimal threshold from results.json
     results_file = (
-        PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "baselines"
+        PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "baselines"
         / model_name_used / "results.json"
     )
     threshold = 0.5

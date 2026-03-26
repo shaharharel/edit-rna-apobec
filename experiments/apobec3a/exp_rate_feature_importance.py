@@ -38,7 +38,7 @@ import torch.nn.functional as F
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "apobec3a"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,10 +54,10 @@ SEQUENCES_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 STRUCTURE_CACHE = EMB_DIR / "vienna_structure_cache.npz"
 LOOP_POS_CSV = (
-    PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+    PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
     / "loop_position" / "loop_position_per_site.csv"
 )
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "rate_feature_importance"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "rate_feature_importance"
 
 SEED = 42
 DEVICE = torch.device("cpu")

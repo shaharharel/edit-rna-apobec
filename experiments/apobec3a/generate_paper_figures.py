@@ -28,7 +28,7 @@ import seaborn as sns
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "paper" / "figures"
-RESULTS_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs"
+RESULTS_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs"
 
 logger = logging.getLogger(__name__)
 

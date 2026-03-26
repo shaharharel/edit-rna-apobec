@@ -504,7 +504,7 @@ def analyze_task_weights(model, output_dir):
 def compare_with_tabular(results, tabular_path=None, output_dir=None):
     """Generate comparison table between neural model and tabular baseline."""
     if tabular_path is None:
-        tabular_path = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "exp0_tabular" / "exp0_results.json"
+        tabular_path = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "exp0_tabular" / "exp0_results.json"
 
     if not Path(tabular_path).exists():
         logger.info("Tabular baseline results not found at %s, skipping comparison", tabular_path)
@@ -736,7 +736,7 @@ def main():
 
     # Comparison with tabular baseline
     tabular_path = args.tabular_results or (
-        PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "exp0_tabular" / "exp0_results.json"
+        PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "exp0_tabular" / "exp0_results.json"
     )
     comparison = compare_with_tabular(results, tabular_path, output_dir)
 

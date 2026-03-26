@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 SEQ_JSON = PROJECT_ROOT / "data" / "processed" / "site_sequences.json"
 LABELS_CSV = PROJECT_ROOT / "data" / "processed" / "editing_sites_labels.csv"
-PRED_CSV = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "iteration3" / "test_predictions.csv"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "motif_analysis"
+PRED_CSV = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "iteration3" / "test_predictions.csv"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "motif_analysis"
 
 DATASET_LABELS = {
     "advisor_c2t": "Levanon",

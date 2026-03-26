@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 EMB_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings"
 SPLITS_CSV = PROJECT_ROOT / "data" / "processed" / "splits_expanded.csv"
 STRUCT_CACHE = EMB_DIR / "vienna_structure_cache.npz"
-OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec" / "outputs" / "cross_dataset"
+OUTPUT_DIR = PROJECT_ROOT / "experiments" / "apobec3a" / "outputs" / "cross_dataset"
 
 DATASETS = ["advisor_c2t", "asaoka_2019", "sharma_2015", "alqassim_2021"]
 DATASET_LABELS = {
@@ -48,7 +48,7 @@ DATASET_LABELS = {
 }
 
 # Import baseline and train_baselines utilities
-from experiments.apobec.train_baselines import (
+from experiments.apobec3a.train_baselines import (
     BaselineConfig,
     EmbeddingDataset,
     FocalLoss,

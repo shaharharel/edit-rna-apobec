@@ -294,13 +294,13 @@ class APOBECMultiTaskHead(nn.Module):
             nn.Linear(256, 1),
         )
 
-        # Head 2: Editing rate regression (0-100%)
+        # Head 2: Editing rate regression (Z-scored targets span ~[-3, +3])
         self.rate_head = nn.Sequential(
             nn.Linear(d_combined, 256),
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(256, 1),
-            nn.Sigmoid(),  # constrain to [0, 1]
+            # No Sigmoid: Z-scored targets range [-3, +3], not [0, 1]
         )
 
         # Head 3: Enzyme specificity (4 classes: A3A, A3G, Both, Neither)

@@ -57,11 +57,12 @@ def main():
     n_advisor_removed = is_advisor.sum() - advisor_keep.sum()
     print(f"Removed {n_advisor_removed} non-A3A advisor sites")
 
-    # Remove baysal_2016 (subset of asaoka_2019)
+    # Relabel baysal_2016 as asaoka_2019 (both use A3A overexpression in HEK293T).
+    # Per CLAUDE.md: "Baysal sites already appear under asaoka_2019 in splits_expanded_a3a.csv"
     is_baysal = df_filtered["dataset_source"] == "baysal_2016"
     n_baysal = is_baysal.sum()
-    df_filtered = df_filtered[~is_baysal].copy()
-    print(f"Removed {n_baysal} baysal_2016 sites (subset of asaoka_2019)")
+    df_filtered.loc[is_baysal, "dataset_source"] = "asaoka_2019"
+    print(f"Relabeled {n_baysal} baysal_2016 sites as asaoka_2019 (same A3A experiment)")
 
     # Summary
     print(f"\nResult: {len(df_filtered)} rows (was {n_before})")
