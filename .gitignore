@@ -86,6 +86,9 @@ checkpoints/
 *.tar
 *.zip
 *.gz
+*.bgz
+*.tbi
+*.bai
 
 # Keep directory structure and metadata
 !**/.gitkeep
@@ -105,7 +108,9 @@ cache/
 # Results and outputs (regenerable)
 # =============================================================================
 results/
-reports/
+# reports/ — tracked (advisor reports, experiment plans)
+!reports/
+!reports/*.md
 **/results/
 **/figures/
 **/outputs/
@@ -141,6 +146,12 @@ data/processed/
 
 # Reference genomes (large, re-downloadable)
 data/raw/genomes/
+
+# TCGA MAF and expression files (large, re-downloadable from cBioPortal)
+data/raw/tcga/
+
+# gnomAD VCFs and constraint files (large, re-downloadable)
+data/raw/gnomad/
 
 # APOBEC data directory (large files) - keep CLAUDE.md
 data/apobec/

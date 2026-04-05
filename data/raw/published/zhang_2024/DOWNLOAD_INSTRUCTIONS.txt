@@ -1,0 +1,20 @@
+Zhang 2024 - APOBEC3B breast cancer T-47D
+==========================================
+
+Paper: https://www.nature.com/articles/s41388-024-03171-5
+GEO: GSE245700
+
+Downloaded successfully:
+- GSE245700_Processed_data_DVR_Calling.xlsx (10.4 MB from GEO FTP)
+  Contains DVR calling results for T-47D cells with A3B overexpression.
+  4 sheets: PolyA 24h, PolyA 72h, RibosomalDepletion, Mutant control.
+
+Not downloaded (403 Forbidden):
+- Supplementary List 2 from Nature website
+  All MOESM files at static-content.springer.com returned 403.
+  These may contain additional annotations not in the GEO file.
+  To download manually: visit the paper page and click "Supplementary information".
+
+For the parsing script, the GEO file was sufficient to extract 501 significant
+A3B-specific C>T DVR sites (FDR < 0.05, positive differential editing,
+catalytic mutant background subtracted).

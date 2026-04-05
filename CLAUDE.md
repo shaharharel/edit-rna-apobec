@@ -66,36 +66,6 @@ tests/         # Unit tests
 
 ---
 
-## Project Structure
-
-```
-src/                       # Core library (data loaders, embedders, models, utils)
-├── data/                  # Data loading, datasets, sequence utils
-│   ├── apobec_feature_extraction.py  # Enzyme-agnostic feature extraction (motif, loop, structure)
-│   ├── apobec_dataset.py             # Dataset loading and preprocessing
-│   ├── feature_sets.py               # Feature set definitions
-│   └── editing_sites.py              # Editing site data structures
-├── embedding/             # RNA embedders (RNA-FM, RNABERT, edit embedders, structure)
-├── models/                # Neural architectures, predictors, trainer, GNN
-│   └── baselines/         # Baseline models (PooledMLP, SubtractionMLP, etc.)
-└── utils/                 # Splits, metrics, caching, logging
-
-experiments/
-├── apobec3a/              # APOBEC3A experiments + HTML report (v3_report.html)
-├── apobec3b/              # APOBEC3B experiments (classification, ClinVar)
-├── apobec3g/              # APOBEC3G experiments (classification, ClinVar)
-├── multi_enzyme/          # Cross-enzyme comparison report (multi_enzyme_report.html)
-└── apobec4/               # APOBEC4 exploratory analysis
-
-scripts/
-├── apobec3a/              # APOBEC3A data preprocessing scripts
-└── multi_enzyme/          # Multi-enzyme dataset building, negatives, structure
-
-data/                      # Raw and processed datasets
-tests/                     # Unit tests
-```
-
----
 
 ## Key Patterns
 
