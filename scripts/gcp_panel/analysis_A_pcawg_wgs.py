@@ -479,6 +479,61 @@ def recall_ratio_with_perm(w: pd.DataFrame, score_col: str, mut_col: str,
     }
 
 
+def bootstrap_mean_ci(per_cancer_ratios: list[float], threshold: float,
+                       n_boot: int = 10000, seed: int = 20260425) -> dict:
+    """10K bootstraps over the per-cancer recall-ratio sample. Returns:
+    - mean / median / 95% CI on bootstrap distribution of mean
+    - one-sided bootstrap p-value for H0: mean_ratio <= threshold
+    - joint exceedance count (n cancers with ratio > 1.0) + binomial p-value
+
+    Per-cancer ratios with NaN are dropped; both observed and bootstrap-mean
+    use the cleaned sample.
+    """
+    arr = np.array([v for v in per_cancer_ratios if v == v], dtype=np.float64)
+    n = len(arr)
+    if n == 0:
+        return {"n_cancers": 0, "mean_observed": float("nan"),
+                "median_boot": float("nan"), "ci95_low": float("nan"),
+                "ci95_high": float("nan"), "p_boot_le_thresh": float("nan"),
+                "threshold": float(threshold), "n_boot": int(n_boot)}
+    rng = np.random.default_rng(seed)
+    boot_means = np.empty(n_boot, dtype=np.float64)
+    for i in range(n_boot):
+        sample = rng.choice(arr, size=n, replace=True)
+        boot_means[i] = sample.mean()
+    obs_mean = float(arr.mean())
+    p_boot = float((boot_means <= threshold).sum() + 1) / (n_boot + 1)
+    return {
+        "n_cancers": int(n),
+        "mean_observed": obs_mean,
+        "median_boot": float(np.median(boot_means)),
+        "ci95_low": float(np.percentile(boot_means, 2.5)),
+        "ci95_high": float(np.percentile(boot_means, 97.5)),
+        "p_boot_le_thresh": p_boot,
+        "threshold": float(threshold),
+        "n_boot": int(n_boot),
+    }
+
+
+def joint_exceedance_test(per_cancer_ratios: list[float], threshold: float = 1.0) -> dict:
+    """Binomial p-value for n_cancers_above_threshold under H0: prob=0.5.
+    One-sided 'greater'."""
+    arr = np.array([v for v in per_cancer_ratios if v == v], dtype=np.float64)
+    n = len(arr)
+    n_above = int((arr > threshold).sum())
+    if n == 0:
+        return {"n_cancers": 0, "n_above_1.0": 0, "binomial_p_one_sided": 1.0,
+                "threshold": float(threshold)}
+    from scipy.stats import binomtest
+    res = binomtest(n_above, n, p=0.5, alternative="greater")
+    return {
+        "n_cancers": int(n),
+        "n_above_1.0": n_above,
+        "binomial_p_one_sided": float(res.pvalue),
+        "threshold": float(threshold),
+    }
+
+
 # =========================================================================== #
 # Primary + secondary
 # =========================================================================== #
@@ -595,17 +650,43 @@ def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
         "mean_ratio_primary": mean_primary,
         "n_cancers_signif_q05": n_signif,
     }
+    # Bootstrap CI + p-values for criteria (a), (c), (d)
+    boot_a = bootstrap_mean_ci(ratios_primary, PRIMARY_MIN_LIFT_A, n_boot=10000, seed=20260601)
+    boot_c = bootstrap_mean_ci(ratios_driver, PRIMARY_MIN_LIFT_DRIVER, n_boot=10000, seed=20260602)
+    boot_d = bootstrap_mean_ci(ratios_masked, PRIMARY_MIN_LIFT_MASKED, n_boot=10000, seed=20260603)
+    joint_exc = joint_exceedance_test(ratios_primary, threshold=1.0)
+
     results["pass_criteria"] = {
-        "(a)_mean_primary_>=_1.5": {"val": mean_primary, "thresh": PRIMARY_MIN_LIFT_A, "pass": pass_a},
+        "(a)_mean_primary_>=_1.5": {"val": mean_primary, "thresh": PRIMARY_MIN_LIFT_A, "pass": pass_a,
+                                    "bootstrap": boot_a},
         "(b)_signif_q<0.025_>=_6": {"val": n_signif, "thresh": PRIMARY_MIN_SIGNIF, "pass": pass_b,
                                     "alpha": PRIMARY_ALPHA},
-        "(c)_driver_>=_1.3": {"val": mean_driver, "thresh": PRIMARY_MIN_LIFT_DRIVER, "pass": pass_c},
-        "(d)_masked_>=_1.3": {"val": mean_masked, "thresh": PRIMARY_MIN_LIFT_MASKED, "pass": pass_d},
+        "(c)_driver_>=_1.3": {"val": mean_driver, "thresh": PRIMARY_MIN_LIFT_DRIVER, "pass": pass_c,
+                              "bootstrap": boot_c},
+        "(d)_masked_>=_1.3": {"val": mean_masked, "thresh": PRIMARY_MIN_LIFT_MASKED, "pass": pass_d,
+                              "bootstrap": boot_d},
+        "joint_exceedance_n_above_1.0": joint_exc,
         "PASS": passed,
     }
     logger.info("PRIMARY: %s", "PASS" if passed else "FAIL")
     for k, v in results["pass_criteria"].items():
-        logger.info("  %s: %s", k, v)
+        if k == "joint_exceedance_n_above_1.0":
+            logger.info("  joint_exceedance: n_above_1.0=%d/%d binom_p=%.3e",
+                        v.get("n_above_1.0", 0), v.get("n_cancers", 0),
+                        v.get("binomial_p_one_sided", 1.0))
+        elif k == "PASS":
+            continue
+        elif "bootstrap" in v:
+            b = v["bootstrap"]
+            logger.info("  %s: val=%.3f thresh=%s pass=%s | "
+                        "boot_mean=%.3f CI95=[%.3f, %.3f] p_le=%.3e",
+                        k, v["val"], v["thresh"], v["pass"],
+                        b.get("mean_observed", float("nan")),
+                        b.get("ci95_low", float("nan")),
+                        b.get("ci95_high", float("nan")),
+                        b.get("p_boot_le_thresh", float("nan")))
+        else:
+            logger.info("  %s: %s", k, v)
 
     if provenance is not None:
         results["provenance"] = provenance

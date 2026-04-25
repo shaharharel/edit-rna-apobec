@@ -38,6 +38,7 @@ from analysis_A_pcawg_wgs import (  # noqa: E402
     HEADS, PERCENTILES, count_tcw_in_window,
     load_panel_scores, load_v3_positions_hg19, load_bailey_drivers,
     recall_ratio_with_perm, COMP, compute_provenance,
+    bootstrap_mean_ci, joint_exceedance_test,
 )
 from statsmodels.stats.multitest import multipletests   # noqa: E402
 
@@ -294,15 +295,30 @@ def run_primary_b(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
     passed = pass_a and pass_b and pass_c and pass_d
     results["pooled"] = {"mean_ratio_primary": mean_p, "mean_ratio_masked": mean_m,
                         "mean_ratio_driver": mean_d, "n_cancers_signif_q05": n_signif}
+    boot_a = bootstrap_mean_ci(ratios_p, PRIMARY_MIN_LIFT_A, n_boot=10000, seed=20260611)
+    boot_c = bootstrap_mean_ci(ratios_d, PRIMARY_MIN_LIFT_DRIVER, n_boot=10000, seed=20260612)
+    boot_d_ = bootstrap_mean_ci(ratios_m, PRIMARY_MIN_LIFT_MASKED, n_boot=10000, seed=20260613)
+    joint_exc = joint_exceedance_test(ratios_p, threshold=1.0)
     results["pass_criteria"] = {
-        "(a)_mean_primary_>=_1.5": {"val": mean_p, "thresh": PRIMARY_MIN_LIFT_A, "pass": pass_a},
+        "(a)_mean_primary_>=_1.5": {"val": mean_p, "thresh": PRIMARY_MIN_LIFT_A, "pass": pass_a,
+                                    "bootstrap": boot_a},
         "(b)_signif_q<0.025_>=_6": {"val": n_signif, "thresh": PRIMARY_MIN_SIGNIF, "pass": pass_b,
                                     "alpha": PRIMARY_ALPHA},
-        "(c)_driver_>=_1.3": {"val": mean_d, "thresh": PRIMARY_MIN_LIFT_DRIVER, "pass": pass_c},
-        "(d)_masked_>=_1.3": {"val": mean_m, "thresh": PRIMARY_MIN_LIFT_MASKED, "pass": pass_d},
+        "(c)_driver_>=_1.3": {"val": mean_d, "thresh": PRIMARY_MIN_LIFT_DRIVER, "pass": pass_c,
+                              "bootstrap": boot_c},
+        "(d)_masked_>=_1.3": {"val": mean_m, "thresh": PRIMARY_MIN_LIFT_MASKED, "pass": pass_d,
+                              "bootstrap": boot_d_},
+        "joint_exceedance_n_above_1.0": joint_exc,
         "PASS": passed,
     }
     logger.info("Analysis B PRIMARY: %s", "PASS" if passed else "FAIL")
+    logger.info("  bootstrap (a): n=%d obs=%.3f CI95=[%.3f, %.3f] p_le=%.3e",
+                boot_a.get("n_cancers", 0), boot_a.get("mean_observed", float("nan")),
+                boot_a.get("ci95_low", float("nan")), boot_a.get("ci95_high", float("nan")),
+                boot_a.get("p_boot_le_thresh", float("nan")))
+    logger.info("  joint_exceedance n_above_1.0=%d/%d binom_p=%.3e",
+                joint_exc.get("n_above_1.0", 0), joint_exc.get("n_cancers", 0),
+                joint_exc.get("binomial_p_one_sided", 1.0))
     if provenance is not None:
         results["provenance"] = provenance
     results["config"] = {"aggregator": aggregator, "score_col": score_col,
