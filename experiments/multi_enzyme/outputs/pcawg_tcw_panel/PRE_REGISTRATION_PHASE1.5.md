@@ -5,8 +5,7 @@ computed. Phase 1 has just completed (PHASE_1_DONE.flag written; both primaries
 FAIL with the strict pre-reg criteria, mean ratio A=0.000 / B=0.434 vs threshold
 1.5×, q<0.025 cancers 0/4 (A) and 0/10 (B), reported honestly).
 
-**Git commit (timestamp proof)**: *<inserted at first commit; this file is
-git-committed BEFORE Phase 1.5 launches>*
+**Git commit (timestamp proof)**: `8f4462e` (verifiable via `git show 8f4462e`)
 
 ## Justification
 
