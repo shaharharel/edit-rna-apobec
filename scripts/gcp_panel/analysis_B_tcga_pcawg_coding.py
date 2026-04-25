@@ -317,8 +317,11 @@ def run_secondary_b(w: pd.DataFrame, out_dir: Path) -> dict:
         "n_rows": int(len(df)),
         "n_signif_q05": int((df["q_bh"] < 0.05).sum()) if len(df) else 0,
         "per_cpg_decile": decile,
-        "per_decile_min_ratio": float(min([v["mean_ratio"] for v in decile.values()
-                                           if v["mean_ratio"] == v["mean_ratio"]]) if decile else float("nan")),
+        "per_decile_min_ratio": (
+            float(min(_v for _v in (vv["mean_ratio"] for vv in decile.values())
+                      if _v == _v)) if any(vv["mean_ratio"] == vv["mean_ratio"] for vv in decile.values())
+            else float("nan")
+        ),
     }
     with open(out_dir / "enrichment_secondary.json", "w") as f:
         json.dump(summary, f, indent=2, default=str)

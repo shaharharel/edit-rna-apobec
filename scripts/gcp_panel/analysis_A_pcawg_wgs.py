@@ -520,8 +520,9 @@ def run_secondary(w: pd.DataFrame, out_dir: Path) -> dict:
             "mean_ratio": float(np.nanmean([v["ratio"] for v in per_c.values() if v["ratio"] == v["ratio"]])),
             "per_cancer": per_c,
         }
-    per_decile_min = float(min([v["mean_ratio"] for v in decile_results.values()
-                                if v["mean_ratio"] == v["mean_ratio"]]) if decile_results else float("nan"))
+    valid_means = [v["mean_ratio"] for v in decile_results.values()
+                   if v.get("mean_ratio", float("nan")) == v.get("mean_ratio", float("nan"))]
+    per_decile_min = float(min(valid_means)) if valid_means else float("nan")
 
     # Exploratory family — heads × filters × pcts × cancers (lighter perm 1000)
     rows = []
