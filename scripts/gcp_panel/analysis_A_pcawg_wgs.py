@@ -418,9 +418,35 @@ def filter_to_count_col(filt: str, cancer: str) -> str:
     }.get(filt, f"n_apobec_{cancer}")
 
 
-def run_primary(w: pd.DataFrame, out_dir: Path) -> dict:
-    logger.info("\n%s\nPRIMARY ENDPOINT (pre-registered)\n%s", "=" * 70, "=" * 70)
-    score_col = f"score_{PRIMARY_HEAD}_mean"   # use MEAN per window
+def _per_cancer_primary_worker(args):
+    """Multiprocessing worker — one cancer, all 4 scenarios. Reproducible RNG by cancer index."""
+    (cancer_idx, cancer, score_col, mut_col, w_data, perm_reps) = args
+    # Reconstitute DataFrame from pickled dict (avoids large-DF pickle cost in fork mode)
+    if isinstance(w_data, dict):
+        w = pd.DataFrame(w_data)
+    else:
+        w = w_data
+    rng = np.random.default_rng(20260425 + cancer_idx * 1000)
+    raw = recall_ratio_with_perm(w, score_col, mut_col, "cpg_density", PRIMARY_PCT,
+                                 rng=rng, perm_reps=perm_reps)
+    masked = recall_ratio_with_perm(w, score_col, mut_col, "cpg_density", PRIMARY_PCT,
+                                    mask_col="training_contaminated", rng=rng, perm_reps=perm_reps)
+    w_nd = w[~w["is_driver"]]
+    driver = recall_ratio_with_perm(w_nd, score_col, mut_col, "cpg_density", PRIMARY_PCT,
+                                    rng=rng, perm_reps=perm_reps)
+    w_pp = w[(~w["is_driver"]) & (~w["training_contaminated"])]
+    primary = recall_ratio_with_perm(w_pp, score_col, mut_col, "cpg_density", PRIMARY_PCT,
+                                     rng=rng, perm_reps=perm_reps)
+    return cancer, {"raw": raw, "masked": masked, "driver_ablated": driver, "primary": primary}
+
+
+def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
+                perm_reps: int = None) -> dict:
+    if perm_reps is None:
+        perm_reps = PERM_REPS
+    logger.info("\n%s\nPRIMARY ENDPOINT (pre-registered) [parallel n_workers=%d, perm_reps=%d]\n%s",
+                "=" * 70, n_workers, perm_reps, "=" * 70)
+    score_col = f"score_{PRIMARY_HEAD}_mean"
     if score_col not in w.columns:
         score_col = f"score_{PRIMARY_HEAD}"
 
@@ -431,26 +457,36 @@ def run_primary(w: pd.DataFrame, out_dir: Path) -> dict:
             cancers_avail.append(c)
     logger.info("  cancers w/ %s data: %s", PRIMARY_FILTER, cancers_avail)
 
+    # Slim the DataFrame to columns each worker actually needs (reduces pickle/copy cost)
+    needed_cols = ["chrom", "win_id", "is_driver", "training_contaminated",
+                   "cpg_density", score_col]
+    needed_cols += [filter_to_count_col(PRIMARY_FILTER, c) for c in cancers_avail]
+    needed_cols = [c for c in needed_cols if c in w.columns]
+    w_slim = w[needed_cols].copy()
+
+    import multiprocessing as mp
+    work_args = [(i, c, score_col, filter_to_count_col(PRIMARY_FILTER, c), w_slim, perm_reps)
+                 for i, c in enumerate(cancers_avail)]
+    if n_workers > 1 and len(cancers_avail) > 1:
+        with mp.get_context("fork").Pool(min(n_workers, len(cancers_avail))) as pool:
+            outputs = pool.map(_per_cancer_primary_worker, work_args)
+    else:
+        outputs = [_per_cancer_primary_worker(a) for a in work_args]
+
     p_values_primary = []
     ratios_raw, ratios_masked, ratios_driver, ratios_primary = [], [], [], []
-    rng = np.random.default_rng(20260425)
-    for cancer in cancers_avail:
-        mut_col = filter_to_count_col(PRIMARY_FILTER, cancer)
-        raw = recall_ratio_with_perm(w, score_col, mut_col, "cpg_density", PRIMARY_PCT, rng=rng)
-        masked = recall_ratio_with_perm(w, score_col, mut_col, "cpg_density", PRIMARY_PCT,
-                                        mask_col="training_contaminated", rng=rng)
-        w_nd = w[~w["is_driver"]]
-        driver = recall_ratio_with_perm(w_nd, score_col, mut_col, "cpg_density", PRIMARY_PCT, rng=rng)
-        w_pp = w[(~w["is_driver"]) & (~w["training_contaminated"])]
-        primary = recall_ratio_with_perm(w_pp, score_col, mut_col, "cpg_density", PRIMARY_PCT, rng=rng)
-        results["per_cancer"][cancer] = {"raw": raw, "masked": masked,
-                                         "driver_ablated": driver, "primary": primary}
+    for cancer, det in outputs:
+        results["per_cancer"][cancer] = det
+        raw = det["raw"]; masked = det["masked"]; driver = det["driver_ablated"]; primary = det["primary"]
         logger.info("  %s  raw=%.3f  masked=%.3f  driver=%.3f  primary=%.3f  p_perm=%.2e  total_mut=%d",
                     cancer, raw["ratio"], masked["ratio"], driver["ratio"],
                     primary["ratio"], primary["p_perm"], primary["total_mut"])
         p_values_primary.append(primary["p_perm"])
         ratios_raw.append(raw["ratio"]); ratios_masked.append(masked["ratio"])
         ratios_driver.append(driver["ratio"]); ratios_primary.append(primary["ratio"])
+
+    cancers_avail_in_order = [c for c, _ in outputs]
+    cancers_avail = cancers_avail_in_order
 
     if p_values_primary:
         rej, q_vals, _, _ = multipletests(p_values_primary, alpha=PRIMARY_ALPHA, method="fdr_bh")
@@ -496,55 +532,110 @@ def run_primary(w: pd.DataFrame, out_dir: Path) -> dict:
     return results
 
 
-def run_secondary(w: pd.DataFrame, out_dir: Path) -> dict:
-    logger.info("\n%s\nSECONDARY (BH-corrected family)\n%s", "=" * 70, "=" * 70)
+def _decile_worker(args):
+    decile_idx, w_d_data, cancers, score_col, primary_filter, perm_reps, seed = args
+    if isinstance(w_d_data, dict):
+        w_d = pd.DataFrame(w_d_data)
+    else:
+        w_d = w_d_data
+    rng = np.random.default_rng(seed)
+    per_c = {}
+    for c in cancers:
+        mut_col = {"all_C2T": f"n_CT_{c}",
+                   "tcw_not_cpg": f"n_tcw_not_cpg_{c}",
+                   "cpg": f"n_cpg_{c}",
+                   "apobec_signature": f"n_apobec_{c}"}.get(primary_filter, f"n_apobec_{c}")
+        if mut_col not in w_d.columns:
+            continue
+        r = recall_ratio_with_perm(w_d, score_col, mut_col, "cpg_density", 0.01,
+                                   perm_reps=perm_reps, rng=rng)
+        per_c[c] = r
+    return decile_idx, {
+        "n_windows": int(len(w_d)),
+        "mean_ratio": float(np.nanmean([v["ratio"] for v in per_c.values() if v["ratio"] == v["ratio"]])) if per_c else float("nan"),
+        "per_cancer": per_c,
+    }
+
+
+def _exploratory_worker(args):
+    """One (head, filter, pct, cancer) combination."""
+    (head, filt, pct, cancer, score_col, mut_col, w_data, perm_reps, seed) = args
+    if isinstance(w_data, dict):
+        w_pool = pd.DataFrame(w_data)
+    else:
+        w_pool = w_data
+    rng = np.random.default_rng(seed)
+    r = recall_ratio_with_perm(w_pool, score_col, mut_col, "cpg_density",
+                               pct, perm_reps=perm_reps, rng=rng)
+    return {"head": head, "filter": filt, "pct": pct, "cancer": cancer, **r}
+
+
+def run_secondary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
+                  decile_perm: int = 2000, exploratory_perm: int = 1000) -> dict:
+    logger.info("\n%s\nSECONDARY (BH-corrected family) [parallel n_workers=%d]\n%s",
+                "=" * 70, n_workers, "=" * 70)
     w_pool = w[(~w["is_driver"]) & (~w["training_contaminated"])].copy()
     cancers = [c for c in CANCERS_PCAWG if filter_to_count_col(PRIMARY_FILTER, c) in w_pool.columns]
     if "cpg_density" in w_pool.columns and (w_pool["cpg_density"].nunique() >= 10):
         w_pool["cpg_decile"] = pd.qcut(w_pool["cpg_density"], q=10, labels=False, duplicates="drop")
     else:
         w_pool["cpg_decile"] = 0
-    decile_results = {}
-    rng = np.random.default_rng(20260426)
+
+    score_col_b = "score_binary_mean" if "score_binary_mean" in w_pool.columns else "score_binary"
+    decile_args = []
+    needed_cols = ["chrom", "win_id", "cpg_density", score_col_b]
+    needed_cols += [filter_to_count_col(PRIMARY_FILTER, c) for c in cancers]
+    needed_cols = [c for c in needed_cols if c in w_pool.columns]
     for d in sorted(w_pool["cpg_decile"].dropna().unique()):
-        w_d = w_pool[w_pool["cpg_decile"] == d]
-        per_c = {}
-        for c in cancers:
-            mut_col = filter_to_count_col(PRIMARY_FILTER, c)
-            score_col = "score_binary_mean" if "score_binary_mean" in w_d.columns else "score_binary"
-            r = recall_ratio_with_perm(w_d, score_col, mut_col, "cpg_density", 0.01,
-                                       perm_reps=2000, rng=rng)
-            per_c[c] = r
-        decile_results[int(d)] = {
-            "n_windows": len(w_d),
-            "mean_ratio": float(np.nanmean([v["ratio"] for v in per_c.values() if v["ratio"] == v["ratio"]])),
-            "per_cancer": per_c,
-        }
+        w_d = w_pool[w_pool["cpg_decile"] == d][needed_cols].copy()
+        decile_args.append((int(d), w_d, cancers, score_col_b, PRIMARY_FILTER,
+                            decile_perm, 20260426 + int(d) * 1000))
+
+    import multiprocessing as mp
+    if n_workers > 1 and len(decile_args) > 1:
+        with mp.get_context("fork").Pool(min(n_workers, len(decile_args))) as pool:
+            decile_outputs = pool.map(_decile_worker, decile_args)
+    else:
+        decile_outputs = [_decile_worker(a) for a in decile_args]
+    decile_results = {d: res for d, res in decile_outputs}
     valid_means = [v["mean_ratio"] for v in decile_results.values()
                    if v.get("mean_ratio", float("nan")) == v.get("mean_ratio", float("nan"))]
     per_decile_min = float(min(valid_means)) if valid_means else float("nan")
 
-    # Exploratory family — heads × filters × pcts × cancers (lighter perm 1000)
-    rows = []
-    rng2 = np.random.default_rng(20260427)
+    # Exploratory family parallel
+    score_col_map = {}
     for head in HEADS:
         for col_kind in ("_mean", ""):
-            score_col = f"score_{head}{col_kind}"
-            if score_col not in w_pool.columns:
-                continue
-            break
-        else:
-            continue
+            sc = f"score_{head}{col_kind}"
+            if sc in w_pool.columns:
+                score_col_map[head] = sc
+                break
+    expl_args = []
+    needed_cols2 = ["chrom", "win_id", "cpg_density"] + list(score_col_map.values())
+    for c in cancers:
+        for k in ("n_CT", "n_tcw_not_cpg", "n_cpg", "n_apobec"):
+            col = f"{k}_{c}"
+            if col in w_pool.columns:
+                needed_cols2.append(col)
+    needed_cols2 = list(set([c for c in needed_cols2 if c in w_pool.columns]))
+    w_exp_slim = w_pool[needed_cols2].copy()
+    seed_counter = [20260427]
+    for head, score_col in score_col_map.items():
         for filt in FILTERS:
             for pct in PERCENTILES:
                 for cancer in cancers:
                     mut_col = filter_to_count_col(filt, cancer)
-                    if mut_col not in w_pool.columns:
+                    if mut_col not in w_exp_slim.columns:
                         continue
-                    r = recall_ratio_with_perm(w_pool, score_col, mut_col, "cpg_density",
-                                               pct, perm_reps=1000, rng=rng2)
-                    rows.append({"head": head, "filter": filt, "pct": pct, "cancer": cancer,
-                                 "score_kind": col_kind or "max", **r})
+                    expl_args.append((head, filt, pct, cancer, score_col, mut_col,
+                                      w_exp_slim, exploratory_perm, seed_counter[0]))
+                    seed_counter[0] += 1
+
+    if n_workers > 1 and len(expl_args) > 1:
+        with mp.get_context("fork").Pool(n_workers) as pool:
+            rows = pool.map(_exploratory_worker, expl_args)
+    else:
+        rows = [_exploratory_worker(a) for a in expl_args]
     df = pd.DataFrame(rows)
     if len(df):
         p = df["p_perm"].clip(0, 1).values
@@ -622,6 +713,10 @@ def main():
     ap.add_argument("--hg19", type=Path, default=PROJECT_ROOT / "data/raw/genomes/hg19.fa")
     ap.add_argument("--out-dir", type=Path, default=PROJECT_ROOT / "experiments/multi_enzyme/outputs/pcawg_tcw_panel/analysis_A_pcawg_wgs")
     ap.add_argument("--perm-reps", type=int, default=PERM_REPS)
+    ap.add_argument("--n-workers", type=int, default=8,
+                    help="Multiprocessing pool size for per-cancer parallelism")
+    ap.add_argument("--decile-perm", type=int, default=2000)
+    ap.add_argument("--exploratory-perm", type=int, default=1000)
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -632,8 +727,10 @@ def main():
     v3 = load_v3_positions_hg19(args.v3_splits)
 
     w = build_windows(panel, maf, sbs_cancer, drivers, v3, args.hg19, args.out_dir)
-    primary = run_primary(w, args.out_dir)
-    secondary = run_secondary(w, args.out_dir)
+    primary = run_primary(w, args.out_dir, n_workers=args.n_workers, perm_reps=args.perm_reps)
+    secondary = run_secondary(w, args.out_dir, n_workers=args.n_workers,
+                              decile_perm=args.decile_perm,
+                              exploratory_perm=args.exploratory_perm)
     write_report(primary, secondary, args.out_dir / "panel_coverage_stats.json", args.out_dir)
     logger.info("DONE Analysis A.")
 
