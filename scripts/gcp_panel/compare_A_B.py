@@ -52,7 +52,9 @@ def main():
         b_a = _val(bb, "primary"); b_b = _val(bb, "signif"); b_c = _val(bb, "driver"); b_d = _val(bb, "masked")
         lines.append(f"| Primary PASS? | {'Y' if aa.get('PASS') else 'N'} | {'Y' if bb.get('PASS') else 'N'} |\n")
         lines.append(f"| Mean ratio (primary, masked+driver-ablated) | {a_a['val']:.3f} | {b_a['val']:.3f} |\n")
-        lines.append(f"| Signif cancers (BH q<0.05) | {a_b['val']}/{len(A['per_cancer'])} | {b_b['val']}/{len(B['per_cancer'])} |\n")
+        a_alpha = a_b.get("alpha", 0.025)
+        b_alpha = b_b.get("alpha", 0.025)
+        lines.append(f"| Signif cancers (BH q<{a_alpha}) | {a_b['val']}/{len(A['per_cancer'])} | {b_b['val']}/{len(B['per_cancer'])} |\n")
         lines.append(f"| Driver-ablated mean ratio | {a_c['val']:.3f} | {b_c['val']:.3f} |\n")
         lines.append(f"| Training-masked mean ratio | {a_d['val']:.3f} | {b_d['val']:.3f} |\n")
     else:
@@ -121,10 +123,12 @@ def main():
                  "all downstream loop features are reconstructed from cached `struct_wt` via the "
                  "canonical `_extract_loop_geometry`, the reconstructor is self-test byte-equal "
                  "(`loop_reconstructor_validation.json` shows max_abs=0.0 across all 9 slots).\n\n")
-    final.append("5. **SBS attribution is sample-level**: the open PCAWG SigProfilier CSV contains "
-                 "per-tumor × mutation-subtype probabilities, not per-mutation. Analysis A weights "
-                 "each C>T by its tumor's SBS2+SBS13 probability for its trinucleotide subtype. "
-                 "This is the standard approach but is an approximation at the per-mutation level.\n\n")
+    final.append("5. **SBS attribution is cancer-level mean SBS2+SBS13 weight**, applied as a "
+                 "per-mutation proxy because the public PCAWG Donor↔Sample ID mapping is "
+                 "unavailable. This loses within-cancer sample variation but introduces no "
+                 "obvious directional bias. The threshold for 'APOBEC-attributed' was set to 0.1 "
+                 "(cancer-level mean) instead of the original 0.5 (sample-level) to maintain "
+                 "mutation count. See FIXES_APPLIED.md B1 for the detailed rationale.\n\n")
     final.append("## Deliverables\n\n")
     final.append("- `experiments/multi_enzyme/outputs/phase3_mfe_only/phase3_mfe_only.pt`\n")
     final.append("- `experiments/multi_enzyme/outputs/phase3_mfe_only/cv_results.json`\n")

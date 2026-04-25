@@ -34,10 +34,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from analysis_A_pcawg_wgs import (  # noqa: E402
     PRIMARY_HEAD, PRIMARY_PCT, PRIMARY_BASELINE,
     PRIMARY_MIN_LIFT_A, PRIMARY_MIN_SIGNIF, PRIMARY_MIN_LIFT_DRIVER,
-    PRIMARY_MIN_LIFT_MASKED, PRIMARY_ALPHA, WINDOW_BP, PERM_REPS,
+    PRIMARY_MIN_LIFT_MASKED, PRIMARY_ALPHA, SECONDARY_ALPHA, WINDOW_BP, PERM_REPS,
     HEADS, PERCENTILES, count_tcw_in_window,
     load_panel_scores, load_v3_positions_hg19, load_bailey_drivers,
-    recall_ratio_with_perm, COMP,
+    recall_ratio_with_perm, COMP, compute_provenance,
 )
 from statsmodels.stats.multitest import multipletests   # noqa: E402
 
@@ -224,7 +224,7 @@ def _per_cancer_primary_worker_b(args):
 
 
 def run_primary_b(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
-                  perm_reps: int = None) -> dict:
+                  perm_reps: int = None, provenance: dict | None = None) -> dict:
     if perm_reps is None:
         perm_reps = PERM_REPS
     logger.info("\n%s\nPRIMARY (Analysis B) [parallel n_workers=%d, perm_reps=%d]\n%s",
@@ -285,12 +285,15 @@ def run_primary_b(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
                         "mean_ratio_driver": mean_d, "n_cancers_signif_q05": n_signif}
     results["pass_criteria"] = {
         "(a)_mean_primary_>=_1.5": {"val": mean_p, "thresh": PRIMARY_MIN_LIFT_A, "pass": pass_a},
-        "(b)_signif_>=_6": {"val": n_signif, "thresh": PRIMARY_MIN_SIGNIF, "pass": pass_b},
+        "(b)_signif_q<0.025_>=_6": {"val": n_signif, "thresh": PRIMARY_MIN_SIGNIF, "pass": pass_b,
+                                    "alpha": PRIMARY_ALPHA},
         "(c)_driver_>=_1.3": {"val": mean_d, "thresh": PRIMARY_MIN_LIFT_DRIVER, "pass": pass_c},
         "(d)_masked_>=_1.3": {"val": mean_m, "thresh": PRIMARY_MIN_LIFT_MASKED, "pass": pass_d},
         "PASS": passed,
     }
     logger.info("Analysis B PRIMARY: %s", "PASS" if passed else "FAIL")
+    if provenance is not None:
+        results["provenance"] = provenance
     out = out_dir / "enrichment_primary.json"
     with open(out, "w") as f:
         json.dump(results, f, indent=2, default=str)
@@ -395,12 +398,13 @@ def run_secondary_b(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
     df = pd.DataFrame(rows)
     if len(df):
         p = df["p_perm"].clip(0, 1).values
-        rej, q, _, _ = multipletests(p, alpha=PRIMARY_ALPHA, method="fdr_bh")
+        rej, q, _, _ = multipletests(p, alpha=SECONDARY_ALPHA, method="fdr_bh")
         df["q_bh"] = q; df["reject_bh"] = rej
     df.to_csv(out_dir / "enrichment_secondary.csv", index=False)
     summary = {
         "n_rows": int(len(df)),
-        "n_signif_q05": int((df["q_bh"] < 0.05).sum()) if len(df) else 0,
+        "n_signif_q05": int((df["q_bh"] < SECONDARY_ALPHA).sum()) if len(df) else 0,
+        "secondary_alpha": SECONDARY_ALPHA,
         "per_cpg_decile": decile,
         "per_decile_min_ratio": (
             float(min(_v for _v in (vv["mean_ratio"] for vv in decile.values())
@@ -455,6 +459,10 @@ def main():
     ap.add_argument("--n-workers", type=int, default=8)
     ap.add_argument("--decile-perm", type=int, default=2000)
     ap.add_argument("--exploratory-perm", type=int, default=1000)
+    ap.add_argument("--phase3-model", type=Path, default=None,
+                    help="Path to phase3_mfe_only.pt for SHA provenance (default: canonical)")
+    ap.add_argument("--apobec1-model", type=Path, default=None,
+                    help="Path to apobec1_head_mfe_only.pt for SHA provenance (default: canonical)")
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -462,8 +470,13 @@ def main():
     maf = load_combined_coding_maf(args.pcawg_dir, args.tcga_dir)
     drivers = load_bailey_drivers(args.bailey_drivers)
     v3 = load_v3_positions_hg19(args.v3_splits)
+    logger.info("Computing provenance hashes ...")
+    provenance = compute_provenance(args.panel, args.phase3_model, args.apobec1_model)
+    logger.info("  git_commit=%s panel_sha=%s",
+                provenance["git_commit"][:12], provenance["panel_scores_cds_sha256"][:16])
     w = build_windows_b(panel, maf, drivers, v3, args.hg19, args.out_dir)
-    primary = run_primary_b(w, args.out_dir, n_workers=args.n_workers, perm_reps=args.perm_reps)
+    primary = run_primary_b(w, args.out_dir, n_workers=args.n_workers, perm_reps=args.perm_reps,
+                            provenance=provenance)
     secondary = run_secondary_b(w, args.out_dir, n_workers=args.n_workers,
                                 decile_perm=args.decile_perm,
                                 exploratory_perm=args.exploratory_perm)

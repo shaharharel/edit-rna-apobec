@@ -9,8 +9,9 @@ before any panel score is examined):
     windows ranked by the binary head's mean score? Compare to CpG-density-
     ranked baseline. Pass criteria:
       (a) mean recall ratio (model / cpg_baseline) >= 1.5x across 10 cancers
-      (b) >=6 of 10 cancers significant (BH-FDR q<0.05) under a permutation null
-          on window labels (10,000 permutations per cancer)
+      (b) >=6 of 10 cancers significant (BH-FDR q<0.025) under a permutation null
+          on window labels (10,000 permutations per cancer). alpha=0.025 from
+          Bonferroni correction across the family of 2 primaries (A and B).
       (c) post driver-gene ablation, mean ratio >= 1.3x
       (d) post training-site mask (+/-1 kb), mean ratio >= 1.3x
 
@@ -28,8 +29,11 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import logging
+import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -55,7 +59,10 @@ PRIMARY_MIN_LIFT_A = 1.5
 PRIMARY_MIN_SIGNIF = 6
 PRIMARY_MIN_LIFT_DRIVER = 1.3
 PRIMARY_MIN_LIFT_MASKED = 1.3
-PRIMARY_ALPHA = 0.05
+# Bonferroni across A and B primaries (family of 2 hypotheses, alpha_family=0.05):
+# per-analysis alpha = 0.025. Pre-reg L141-144.
+PRIMARY_ALPHA = 0.025
+SECONDARY_ALPHA = 0.05   # Pre-reg L91-93: secondary BH at q<0.05 (separate family)
 APOBEC_WEIGHT_THRESHOLD = 0.1   # cancer-level SBS2+SBS13 mean to call mutation APOBEC
 
 WINDOW_BP = 1000
@@ -69,6 +76,64 @@ CANCERS_PCAWG = ["Skin-Melanoma", "Liver-HCC", "Eso-AdenoCa", "Panc-AdenoCA",
 HEADS = ["binary", "A3A", "A3B", "A3G", "A3A_A3G", "Neither", "apobec1"]
 FILTERS = ["all_C2T", "tcw_not_cpg", "cpg", "apobec_signature"]
 PERCENTILES = [0.001, 0.005, 0.01, 0.05]
+
+
+# =========================================================================== #
+# Provenance — captured at run time and embedded in enrichment_primary.json
+# =========================================================================== #
+PRE_REGISTRATION_COMMIT = "a350c26"
+FIXES_APPLIED_COMMIT = "061591d"
+
+
+def _sha256_file(path: Path | None) -> str:
+    if path is None:
+        return ""
+    try:
+        if not Path(path).exists():
+            return f"<missing:{path}>"
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception as ex:
+        return f"<sha256-error:{ex}>"
+
+
+def _git_head_commit() -> str:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=10,
+        )
+        if out.returncode == 0:
+            return out.stdout.strip()
+        return f"<git-error:{out.stderr.strip()[:120]}>"
+    except Exception as ex:
+        return f"<git-exception:{ex}>"
+
+
+def compute_provenance(panel_path: Path,
+                       phase3_path: Path | None = None,
+                       apobec1_path: Path | None = None) -> dict:
+    """Build the provenance dict embedded into enrichment_primary.json.
+    Default model paths are the canonical MFE-only weights."""
+    if phase3_path is None:
+        phase3_path = PROJECT_ROOT / "experiments/multi_enzyme/outputs/phase3_mfe_only/phase3_mfe_only.pt"
+    if apobec1_path is None:
+        apobec1_path = PROJECT_ROOT / "experiments/multi_enzyme/outputs/apobec1_head/apobec1_head_mfe_only.pt"
+    return {
+        "git_commit": _git_head_commit(),
+        "phase3_mfe_only_sha256": _sha256_file(phase3_path),
+        "apobec1_head_mfe_only_sha256": _sha256_file(apobec1_path),
+        "panel_scores_cds_sha256": _sha256_file(panel_path),
+        "pre_registration_commit": PRE_REGISTRATION_COMMIT,
+        "fixes_applied_commit": FIXES_APPLIED_COMMIT,
+        "phase3_mfe_only_path": str(phase3_path),
+        "apobec1_head_mfe_only_path": str(apobec1_path),
+        "panel_scores_path": str(panel_path),
+        "run_timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
 
 
 # =========================================================================== #
@@ -441,7 +506,7 @@ def _per_cancer_primary_worker(args):
 
 
 def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
-                perm_reps: int = None) -> dict:
+                perm_reps: int = None, provenance: dict | None = None) -> dict:
     if perm_reps is None:
         perm_reps = PERM_REPS
     logger.info("\n%s\nPRIMARY ENDPOINT (pre-registered) [parallel n_workers=%d, perm_reps=%d]\n%s",
@@ -516,7 +581,8 @@ def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
     }
     results["pass_criteria"] = {
         "(a)_mean_primary_>=_1.5": {"val": mean_primary, "thresh": PRIMARY_MIN_LIFT_A, "pass": pass_a},
-        "(b)_signif_>=_6": {"val": n_signif, "thresh": PRIMARY_MIN_SIGNIF, "pass": pass_b},
+        "(b)_signif_q<0.025_>=_6": {"val": n_signif, "thresh": PRIMARY_MIN_SIGNIF, "pass": pass_b,
+                                    "alpha": PRIMARY_ALPHA},
         "(c)_driver_>=_1.3": {"val": mean_driver, "thresh": PRIMARY_MIN_LIFT_DRIVER, "pass": pass_c},
         "(d)_masked_>=_1.3": {"val": mean_masked, "thresh": PRIMARY_MIN_LIFT_MASKED, "pass": pass_d},
         "PASS": passed,
@@ -524,6 +590,9 @@ def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
     logger.info("PRIMARY: %s", "PASS" if passed else "FAIL")
     for k, v in results["pass_criteria"].items():
         logger.info("  %s: %s", k, v)
+
+    if provenance is not None:
+        results["provenance"] = provenance
 
     out = out_dir / "enrichment_primary.json"
     with open(out, "w") as f:
@@ -639,12 +708,13 @@ def run_secondary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
     df = pd.DataFrame(rows)
     if len(df):
         p = df["p_perm"].clip(0, 1).values
-        rej, q, _, _ = multipletests(p, alpha=PRIMARY_ALPHA, method="fdr_bh")
+        rej, q, _, _ = multipletests(p, alpha=SECONDARY_ALPHA, method="fdr_bh")
         df["q_bh"] = q; df["reject_bh"] = rej
     df.to_csv(out_dir / "enrichment_secondary.csv", index=False)
     summary = {
         "n_rows": int(len(df)),
-        "n_signif_q05": int((df["q_bh"] < 0.05).sum()) if len(df) else 0,
+        "n_signif_q05": int((df["q_bh"] < SECONDARY_ALPHA).sum()) if len(df) else 0,
+        "secondary_alpha": SECONDARY_ALPHA,
         "per_cpg_decile": decile_results,
         "per_decile_min_ratio": per_decile_min,
     }
@@ -662,7 +732,7 @@ def write_report(primary, secondary, coverage_path: Path, out_dir: Path):
     lines.append(f"- Head: `{PRIMARY_HEAD}` | Filter: `{PRIMARY_FILTER}` | Top pct: {PRIMARY_PCT}\n")
     lines.append(f"- Baseline: `{PRIMARY_BASELINE}` | APOBEC weight threshold: {APOBEC_WEIGHT_THRESHOLD}\n")
     lines.append(f"- Cancers evaluated: {len(primary['per_cancer'])}\n")
-    lines.append(f"- Test: permutation null ({PERM_REPS} reps per cancer), BH-FDR across cancers\n\n")
+    lines.append(f"- Test: permutation null ({PERM_REPS} reps per cancer), BH-FDR alpha={PRIMARY_ALPHA} across cancers (Bonferroni-tightened from 0.05 across A+B family per pre-reg L141-144)\n\n")
     pc = primary["pass_criteria"]
     lines.append(f"### RESULT: **{'PASS' if pc['PASS'] else 'FAIL'}**\n\n")
     for k, v in pc.items():
@@ -680,8 +750,8 @@ def write_report(primary, secondary, coverage_path: Path, out_dir: Path):
         lines.append(f"| {cancer} | {pr['ratio']:.3f} | {pr['recall_model']:.4f} | "
                      f"{pr['recall_baseline']:.4f} | {pr['total_mut']} | "
                      f"{pr['p_perm']:.2e} | {q:.3g} | {'Y' if rej else 'N'} |\n")
-    lines.append("\n## Secondary (BH-corrected family)\n")
-    lines.append(f"- Total rows: {secondary['n_rows']}\n- Significant (q<0.05): {secondary['n_signif_q05']}\n")
+    lines.append("\n## Secondary (BH-corrected family at alpha=" + str(SECONDARY_ALPHA) + ")\n")
+    lines.append(f"- Total rows: {secondary['n_rows']}\n- Significant (q<{SECONDARY_ALPHA}): {secondary['n_signif_q05']}\n")
     lines.append(f"- Per-decile min mean_ratio (QA #2): {secondary.get('per_decile_min_ratio', float('nan')):.3f}\n")
     if coverage_path.exists():
         cov = json.loads(coverage_path.read_text())
@@ -717,6 +787,10 @@ def main():
                     help="Multiprocessing pool size for per-cancer parallelism")
     ap.add_argument("--decile-perm", type=int, default=2000)
     ap.add_argument("--exploratory-perm", type=int, default=1000)
+    ap.add_argument("--phase3-model", type=Path, default=None,
+                    help="Path to phase3_mfe_only.pt for SHA provenance (default: canonical)")
+    ap.add_argument("--apobec1-model", type=Path, default=None,
+                    help="Path to apobec1_head_mfe_only.pt for SHA provenance (default: canonical)")
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -726,8 +800,14 @@ def main():
     drivers = load_bailey_drivers(args.bailey_drivers)
     v3 = load_v3_positions_hg19(args.v3_splits)
 
+    logger.info("Computing provenance hashes ...")
+    provenance = compute_provenance(args.panel, args.phase3_model, args.apobec1_model)
+    logger.info("  git_commit=%s panel_sha=%s",
+                provenance["git_commit"][:12], provenance["panel_scores_cds_sha256"][:16])
+
     w = build_windows(panel, maf, sbs_cancer, drivers, v3, args.hg19, args.out_dir)
-    primary = run_primary(w, args.out_dir, n_workers=args.n_workers, perm_reps=args.perm_reps)
+    primary = run_primary(w, args.out_dir, n_workers=args.n_workers, perm_reps=args.perm_reps,
+                          provenance=provenance)
     secondary = run_secondary(w, args.out_dir, n_workers=args.n_workers,
                               decile_perm=args.decile_perm,
                               exploratory_perm=args.exploratory_perm)
