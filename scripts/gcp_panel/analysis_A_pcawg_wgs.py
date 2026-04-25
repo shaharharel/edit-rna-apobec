@@ -277,14 +277,21 @@ def count_tcw_in_window(seq: str) -> int:
 
 def build_windows(panel: pd.DataFrame, maf: pd.DataFrame,
                   sbs_cancer: pd.DataFrame, drivers: set[str],
-                  v3_hg19: pd.DataFrame, hg19_fa: Path, out_dir: Path) -> pd.DataFrame:
-    """Aggregate CDS candidates into 1 kb windows with per-window features and
-    per-cancer mutation counts (raw, TCW-non-CpG, APOBEC-attributed, CpG-only)."""
+                  v3_hg19: pd.DataFrame, hg19_fa: Path, out_dir: Path,
+                  window_bp: int = None) -> pd.DataFrame:
+    """Aggregate CDS candidates into windows (default 1 kb) with per-window features
+    and per-cancer mutation counts (raw, TCW-non-CpG, APOBEC-attributed, CpG-only).
+
+    `window_bp` overrides the module-level WINDOW_BP for Phase 1.5 (250 bp etc).
+    """
     from pyfaidx import Fasta
     genome = Fasta(str(hg19_fa))
+    if window_bp is None:
+        window_bp = WINDOW_BP
+    logger.info("build_windows: window_bp=%d", window_bp)
 
     panel = panel.copy()
-    panel["win_id"] = panel["chrom"].astype(str) + "_" + (panel["pos"] // WINDOW_BP).astype(str)
+    panel["win_id"] = panel["chrom"].astype(str) + "_" + (panel["pos"] // window_bp).astype(str)
 
     score_cols = [c for c in panel.columns if c.startswith("score_")]
     # Use MEAN per window (the supervisor prompt says "max-per-window" but mean is
@@ -313,7 +320,7 @@ def build_windows(panel: pd.DataFrame, maf: pd.DataFrame,
     for i, r in enumerate(w.itertuples(index=False)):
         try:
             win_n = int(r.win_id.split("_")[-1])
-            seq = str(genome[r.chrom][win_n * WINDOW_BP: (win_n + 1) * WINDOW_BP]).upper()
+            seq = str(genome[r.chrom][win_n * window_bp: (win_n + 1) * window_bp]).upper()
         except Exception:
             continue
         cpg_density[i] = seq.count("CG")
@@ -321,12 +328,14 @@ def build_windows(panel: pd.DataFrame, maf: pd.DataFrame,
     w["cpg_density"] = cpg_density
     w["tcw_density"] = tcw_density
 
-    # Training-site mask
-    logger.info("Computing training-mask per window ...")
+    # Training-site mask: ±1 kb buffer translated into number of windows
+    leak_windows = max(1, LEAKAGE_BUFFER_BP // window_bp)
+    logger.info("Computing training-mask per window (±%d bp = ±%d window(s)) ...",
+                LEAKAGE_BUFFER_BP, leak_windows)
     v3_win = set()
     for r in v3_hg19.itertuples(index=False):
-        base = int(r.pos) // WINDOW_BP
-        for dw in range(-1, 2):
+        base = int(r.pos) // window_bp
+        for dw in range(-leak_windows, leak_windows + 1):
             v3_win.add((r.chrom, base + dw))
     w["training_contaminated"] = [((r.chrom, int(r.win_id.split("_")[-1])) in v3_win)
                                   for r in w.itertuples(index=False)]
@@ -352,7 +361,7 @@ def build_windows(panel: pd.DataFrame, maf: pd.DataFrame,
     logger.info("Computing per-mutation subtype + cancer-level APOBEC weight ...")
     sbs_lookup = {(r.cancer, r.subtype): float(r.apobec_weight)
                   for r in sbs_cancer.itertuples(index=False)}
-    maf["win_id"] = maf["chrom"].astype(str) + "_" + (maf["pos"].astype(int) // WINDOW_BP).astype(str)
+    maf["win_id"] = maf["chrom"].astype(str) + "_" + (maf["pos"].astype(int) // window_bp).astype(str)
     subtypes = []
     apobec_w = []
     for r in maf.itertuples(index=False):
@@ -506,14 +515,21 @@ def _per_cancer_primary_worker(args):
 
 
 def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
-                perm_reps: int = None, provenance: dict | None = None) -> dict:
+                perm_reps: int = None, provenance: dict | None = None,
+                aggregator: str = "mean", output_suffix: str = "") -> dict:
     if perm_reps is None:
         perm_reps = PERM_REPS
-    logger.info("\n%s\nPRIMARY ENDPOINT (pre-registered) [parallel n_workers=%d, perm_reps=%d]\n%s",
-                "=" * 70, n_workers, perm_reps, "=" * 70)
-    score_col = f"score_{PRIMARY_HEAD}_mean"
-    if score_col not in w.columns:
+    logger.info("\n%s\nPRIMARY ENDPOINT (pre-registered) [parallel n_workers=%d, perm_reps=%d, agg=%s]\n%s",
+                "=" * 70, n_workers, perm_reps, aggregator, "=" * 70)
+    if aggregator == "mean":
+        score_col = f"score_{PRIMARY_HEAD}_mean"
+        if score_col not in w.columns:
+            score_col = f"score_{PRIMARY_HEAD}"
+    elif aggregator == "max":
+        # Raw `score_<head>` columns hold the per-window MAX (groupby('max'))
         score_col = f"score_{PRIMARY_HEAD}"
+    else:
+        raise ValueError(f"Unknown aggregator: {aggregator!r} (use 'mean' or 'max')")
 
     results = {"per_cancer": {}, "pooled": {}, "pass_criteria": {}}
     cancers_avail = []
@@ -593,8 +609,11 @@ def run_primary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
 
     if provenance is not None:
         results["provenance"] = provenance
+    results["config"] = {"aggregator": aggregator, "score_col": score_col,
+                         "perm_reps": perm_reps,
+                         "output_suffix": output_suffix or None}
 
-    out = out_dir / "enrichment_primary.json"
+    out = out_dir / f"enrichment_primary{output_suffix}.json"
     with open(out, "w") as f:
         json.dump(results, f, indent=2, default=str)
     logger.info("Wrote %s", out)
@@ -640,9 +659,10 @@ def _exploratory_worker(args):
 
 
 def run_secondary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
-                  decile_perm: int = 2000, exploratory_perm: int = 1000) -> dict:
-    logger.info("\n%s\nSECONDARY (BH-corrected family) [parallel n_workers=%d]\n%s",
-                "=" * 70, n_workers, "=" * 70)
+                  decile_perm: int = 2000, exploratory_perm: int = 1000,
+                  aggregator: str = "mean", output_suffix: str = "") -> dict:
+    logger.info("\n%s\nSECONDARY (BH-corrected family) [parallel n_workers=%d, agg=%s]\n%s",
+                "=" * 70, n_workers, aggregator, "=" * 70)
     w_pool = w[(~w["is_driver"]) & (~w["training_contaminated"])].copy()
     cancers = [c for c in CANCERS_PCAWG if filter_to_count_col(PRIMARY_FILTER, c) in w_pool.columns]
     if "cpg_density" in w_pool.columns and (w_pool["cpg_density"].nunique() >= 10):
@@ -650,7 +670,12 @@ def run_secondary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
     else:
         w_pool["cpg_decile"] = 0
 
-    score_col_b = "score_binary_mean" if "score_binary_mean" in w_pool.columns else "score_binary"
+    if aggregator == "mean":
+        score_col_b = "score_binary_mean" if "score_binary_mean" in w_pool.columns else "score_binary"
+    elif aggregator == "max":
+        score_col_b = "score_binary"
+    else:
+        raise ValueError(f"Unknown aggregator: {aggregator!r}")
     decile_args = []
     needed_cols = ["chrom", "win_id", "cpg_density", score_col_b]
     needed_cols += [filter_to_count_col(PRIMARY_FILTER, c) for c in cancers]
@@ -671,10 +696,14 @@ def run_secondary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
                    if v.get("mean_ratio", float("nan")) == v.get("mean_ratio", float("nan"))]
     per_decile_min = float(min(valid_means)) if valid_means else float("nan")
 
-    # Exploratory family parallel
+    # Exploratory family parallel — pick aggregator-appropriate column
     score_col_map = {}
     for head in HEADS:
-        for col_kind in ("_mean", ""):
+        if aggregator == "mean":
+            kinds = ("_mean", "")
+        else:
+            kinds = ("",)   # raw is MAX
+        for col_kind in kinds:
             sc = f"score_{head}{col_kind}"
             if sc in w_pool.columns:
                 score_col_map[head] = sc
@@ -710,24 +739,27 @@ def run_secondary(w: pd.DataFrame, out_dir: Path, n_workers: int = 8,
         p = df["p_perm"].clip(0, 1).values
         rej, q, _, _ = multipletests(p, alpha=SECONDARY_ALPHA, method="fdr_bh")
         df["q_bh"] = q; df["reject_bh"] = rej
-    df.to_csv(out_dir / "enrichment_secondary.csv", index=False)
+    df.to_csv(out_dir / f"enrichment_secondary{output_suffix}.csv", index=False)
     summary = {
         "n_rows": int(len(df)),
         "n_signif_q05": int((df["q_bh"] < SECONDARY_ALPHA).sum()) if len(df) else 0,
         "secondary_alpha": SECONDARY_ALPHA,
         "per_cpg_decile": decile_results,
         "per_decile_min_ratio": per_decile_min,
+        "aggregator": aggregator,
     }
-    with open(out_dir / "enrichment_secondary.json", "w") as f:
+    with open(out_dir / f"enrichment_secondary{output_suffix}.json", "w") as f:
         json.dump(summary, f, indent=2, default=str)
     logger.info("  secondary: %d rows, q<0.05: %d", len(df), summary["n_signif_q05"])
     return summary
 
 
-def write_report(primary, secondary, coverage_path: Path, out_dir: Path):
+def write_report(primary, secondary, coverage_path: Path, out_dir: Path,
+                 output_suffix: str = "", aggregator: str = "mean", window_bp: int = 1000):
     lines = []
-    lines.append("# Analysis A — PCAWG WGS coding-panel enrichment\n")
-    lines.append(f"\nGenerated: {time.strftime('%Y-%m-%d %H:%M')}\n\n")
+    lines.append(f"# Analysis A — PCAWG WGS coding-panel enrichment{' (' + output_suffix.lstrip('_') + ')' if output_suffix else ''}\n")
+    lines.append(f"\nGenerated: {time.strftime('%Y-%m-%d %H:%M')}\n")
+    lines.append(f"Aggregator: {aggregator} | Window: {window_bp} bp\n\n")
     lines.append("## Pre-registered primary endpoint\n")
     lines.append(f"- Head: `{PRIMARY_HEAD}` | Filter: `{PRIMARY_FILTER}` | Top pct: {PRIMARY_PCT}\n")
     lines.append(f"- Baseline: `{PRIMARY_BASELINE}` | APOBEC weight threshold: {APOBEC_WEIGHT_THRESHOLD}\n")
@@ -768,9 +800,10 @@ def write_report(primary, secondary, coverage_path: Path, out_dir: Path):
     lines.append("| M2 | hg38 sites in v3 mask | Filter to coordinate_system=='hg19' |\n")
     lines.append("| M4 | TCW minus-strand bug | Correct rev-comp detection in count_tcw_in_window |\n")
     lines.append("| M5 | CGC list spurious | Curated Bailey-style list excluding TTN/MUC16/OBSCN/SYNE1 |\n")
-    with open(out_dir / "REPORT.md", "w") as f:
+    report_name = f"REPORT{output_suffix}.md"
+    with open(out_dir / report_name, "w") as f:
         f.writelines(lines)
-    logger.info("Wrote %s/REPORT.md", out_dir)
+    logger.info("Wrote %s/%s", out_dir, report_name)
 
 
 def main():
@@ -791,6 +824,12 @@ def main():
                     help="Path to phase3_mfe_only.pt for SHA provenance (default: canonical)")
     ap.add_argument("--apobec1-model", type=Path, default=None,
                     help="Path to apobec1_head_mfe_only.pt for SHA provenance (default: canonical)")
+    ap.add_argument("--window-size", type=int, default=WINDOW_BP,
+                    help="Genomic window size in bp (default 1000; Phase 1.5 uses 250)")
+    ap.add_argument("--aggregator", choices=["mean", "max"], default="mean",
+                    help="Per-window score aggregator (default mean; Phase 1.5 uses max)")
+    ap.add_argument("--output-suffix", type=str, default="",
+                    help="Suffix for output filenames (e.g. _phase1_5)")
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -802,16 +841,33 @@ def main():
 
     logger.info("Computing provenance hashes ...")
     provenance = compute_provenance(args.panel, args.phase3_model, args.apobec1_model)
-    logger.info("  git_commit=%s panel_sha=%s",
-                provenance["git_commit"][:12], provenance["panel_scores_cds_sha256"][:16])
+    provenance["window_size_bp"] = args.window_size
+    provenance["aggregator"] = args.aggregator
+    logger.info("  git_commit=%s panel_sha=%s window=%dbp agg=%s",
+                provenance["git_commit"][:12], provenance["panel_scores_cds_sha256"][:16],
+                args.window_size, args.aggregator)
 
-    w = build_windows(panel, maf, sbs_cancer, drivers, v3, args.hg19, args.out_dir)
+    w = build_windows(panel, maf, sbs_cancer, drivers, v3, args.hg19, args.out_dir,
+                      window_bp=args.window_size)
+    # Save windows with the suffix to keep Phase 1 output intact
+    if args.output_suffix:
+        win_path = args.out_dir / f"windows{args.output_suffix}.parquet"
+        # `build_windows` already wrote windows.parquet; rename
+        default_win = args.out_dir / "windows.parquet"
+        if default_win.exists():
+            default_win.replace(win_path)
+            logger.info("Renamed windows.parquet -> %s", win_path)
     primary = run_primary(w, args.out_dir, n_workers=args.n_workers, perm_reps=args.perm_reps,
-                          provenance=provenance)
+                          provenance=provenance, aggregator=args.aggregator,
+                          output_suffix=args.output_suffix)
     secondary = run_secondary(w, args.out_dir, n_workers=args.n_workers,
                               decile_perm=args.decile_perm,
-                              exploratory_perm=args.exploratory_perm)
-    write_report(primary, secondary, args.out_dir / "panel_coverage_stats.json", args.out_dir)
+                              exploratory_perm=args.exploratory_perm,
+                              aggregator=args.aggregator,
+                              output_suffix=args.output_suffix)
+    write_report(primary, secondary, args.out_dir / "panel_coverage_stats.json", args.out_dir,
+                 output_suffix=args.output_suffix, aggregator=args.aggregator,
+                 window_bp=args.window_size)
     logger.info("DONE Analysis A.")
 
 
