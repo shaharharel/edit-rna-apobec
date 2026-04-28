@@ -183,9 +183,23 @@ def derive_features_from_fold(fold_result):
     mean_delta_pairing = float(np.mean(delta_window)) if len(delta_window) > 0 else 0.0
     std_delta_pairing = float(np.std(delta_window)) if len(delta_window) > 0 else 0.0
 
+    # BUGFIX (2026-04-24): canonical struct_delta layout is
+    # [dp_center, da_center, d_entropy, d_mfe, mean_dp_win, mean_da_win, std_dp_win].
+    # Previous order had std in slot 5 and -mean in slot 6 — that silently mis-fed
+    # slots 5/6 to every prior TCGA/PCAWG scoring pass. ALL prior absolute-OR values
+    # from `exp_pcawg_end2end`, Section-1 replication, Neither-vs-APOBEC1 GI, and
+    # Test 7 used the swapped layout. Within-comparison statistics (rank correlations,
+    # permutation tests) are likely robust because the bug was consistent; absolute
+    # magnitudes are suspect. Flagged in FINAL_REPORT.md.
+    mean_da_window = -mean_delta_pairing  # canonical slot 5: mean of delta_accessibility
     struct_delta = np.array([
-        delta_pairing, delta_accessibility, delta_entropy,
-        delta_mfe, mean_delta_pairing, std_delta_pairing, -mean_delta_pairing
+        delta_pairing,              # 0: dp at center
+        delta_accessibility,        # 1: da at center = -dp
+        delta_entropy,              # 2: d_entropy at center (binary-entropy approx; zeroed in mfe_only regime)
+        delta_mfe,                  # 3: d_mfe
+        mean_delta_pairing,         # 4: mean dp in [-10, +10] window
+        mean_da_window,             # 5: mean da in [-10, +10] window
+        std_delta_pairing,          # 6: std dp in [-10, +10] window
     ], dtype=np.float32)
 
     struct_wt = fold_result["struct_wt"]

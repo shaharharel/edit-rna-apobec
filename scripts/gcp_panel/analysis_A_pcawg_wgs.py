@@ -69,7 +69,7 @@ WINDOW_BP = 1000
 LEAKAGE_BUFFER_BP = 1000
 PERM_REPS = 10000
 
-CANCERS_PCAWG = ["Skin-Melanoma", "Liver-HCC", "Eso-AdenoCa", "Panc-AdenoCA",
+CANCERS_PCAWG = ["Skin-Melanoma", "Liver-HCC", "Eso-AdenoCA", "Panc-AdenoCA",
                  "Prost-AdenoCA", "Lymph-BNHL", "Biliary-AdenoCA", "Kidney-RCC",
                  "Ovary-AdenoCA", "Stomach-AdenoCA"]
 
@@ -205,6 +205,13 @@ def load_pcawg_maf(path: Path) -> pd.DataFrame:
     df = df[df["chrom"].isin(set([f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"]))]
     df = df[["chrom", "pos", "strand", "Donor_ID", "Project_Code"]].rename(
         columns={"Donor_ID": "donor_id", "Project_Code": "cancer"})
+    # Normalize PCAWG Project_Code variant spellings to SBS file convention.
+    # MAF: Eso-AdenoCa, Breast-AdenoCa  ->  SBS: Eso-AdenoCA, Breast-AdenoCa.
+    # Without this rename, the SBS lookup fails -> apobec_weight=0 for ESCA (and BRCA-PCAWG)
+    # and the cancer is silently excluded from the apobec_signature primary endpoint.
+    df["cancer"] = df["cancer"].replace({
+        "Eso-AdenoCa": "Eso-AdenoCA",
+    })
     logger.info("  C>T mutations: %d, %d cancers", len(df), df["cancer"].nunique())
     return df
 

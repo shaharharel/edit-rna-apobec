@@ -8,7 +8,7 @@ commit) is the verifiable timestamp.
 > Authored: 2026-04-25 14:35 IDT, BEFORE any panel scoring or analysis run.
 > Pipeline state at registration: RNA-FM CDS in progress on ai-gpu2 (~3% of
 > chr1 done at chr1=4.5%); no scored chroms yet; no analyses started.
-> Git commit: *<inserted at commit time>*
+> **Git commit (timestamp proof): `a350c26`** (verifiable via `git show a350c26`)
 
 ## Why this document supersedes PRE_REGISTRATION.md
 

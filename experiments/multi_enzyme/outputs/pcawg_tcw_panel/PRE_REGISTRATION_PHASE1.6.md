@@ -9,8 +9,7 @@ are computed.
 — A 0.92/0/4, B 11.51/3/10. (a)/(c)/(d) all PASS strongly. C reproduces v2
 2/4 strict ±0.05; 4/4 directionally stronger).
 
-**Git commit (timestamp proof)**: *<inserted at first commit; this file is
-git-committed BEFORE any Phase 1.6 subprocess launches>*
+**Git commit (timestamp proof)**: `e790cd5` (verifiable via `git show e790cd5`)
 
 ## Justification
 

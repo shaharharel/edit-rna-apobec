@@ -153,6 +153,16 @@ data/raw/tcga/
 # gnomAD VCFs and constraint files (large, re-downloadable)
 data/raw/gnomad/
 
+# Public datasets (large, re-downloadable from public databases)
+data/raw/pcawg/
+data/raw/pog570/
+data/raw/apobec1/
+data/raw/petljak2022/
+data/raw/be_off_target/
+data/raw/a3g_dna/
+data/raw/genie_v19/
+data/raw/apobec1_orig/
+
 # APOBEC data directory (large files) - keep CLAUDE.md
 data/apobec/
 !data/apobec/CLAUDE.md
