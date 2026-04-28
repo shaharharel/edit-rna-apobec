@@ -493,8 +493,8 @@ A3A dominates universally; APOBEC1 wins gastrointestinal cancers in both cohorts
 <p><span style="color:#37474f;"><strong>The APOBEC1 head wins COADREAD and ESCA
 in BOTH cohorts.</strong> APOBEC1 is highly expressed in intestinal and oesophageal
 epithelium where it edits apoB mRNA; the model recovers this enzyme assignment
-without being told. A3G's anti-correlation under TCW_nonCpG is the correct
-biology — A3G prefers CC context, not TCW.</span></p>
+without being told. A3G's anti-correlation under TCW_nonCpG sounds reasonable;
+A3G prefers CC context, not TCW.</span></p>
 
 """
 
