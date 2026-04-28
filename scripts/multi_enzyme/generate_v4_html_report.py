@@ -107,29 +107,22 @@ def load_json(path: Path) -> dict | None:
 
 
 def auroc_summary_table() -> str:
-    """Build v3 vs v4_cancer vs v4_cds AUROC table."""
-    v3 = load_json(ROOT / "experiments/multi_enzyme/outputs/phase3_neural_validation/cv_results.json") or {}
+    """5-fold AUROC for v4_cancer and v4_cds heads."""
     v4c = load_json(V4_CANCER_DIR / "cv_results.json") or {}
     v4d = load_json(V4_CDS_DIR / "cv_results.json") or {}
     apo_cds = load_json(APOBEC1_CDS_DIR / "cv_results.json") or {}
 
     rows = []
-    # overall (v4 only)
     rows.append({
         "Head": "Overall (binary)",
-        "v3 (RNAFM+Hand 1320d, A3A)": "—",
         "v4_cancer mean AUROC": f"{v4c.get('overall_auroc', {}).get('mean', 0):.4f} ± {v4c.get('overall_auroc', {}).get('std', 0):.4f}",
         "v4_cds mean AUROC": f"{v4d.get('overall_auroc', {}).get('mean', 0):.4f} ± {v4d.get('overall_auroc', {}).get('std', 0):.4f}",
     })
     for enz in ["A3A", "A3B", "A3G", "A3A_A3G"]:
-        v3_a = v3.get(enz, {}).get("XGB_RNAFM+Hand_1320d", {})
         v4c_a = v4c.get("per_enzyme_auroc", {}).get(enz, {})
         v4d_a = v4d.get("per_enzyme_auroc", {}).get(enz, {})
         rows.append({
             "Head": enz,
-            "v3 (RNAFM+Hand 1320d, A3A)": (
-                f"{v3_a['mean_auroc']:.4f} ± {v3_a['std_auroc']:.4f}" if v3_a else "—"
-            ),
             "v4_cancer mean AUROC": (
                 f"{v4c_a['mean']:.4f} ± {v4c_a['std']:.4f}" if v4c_a else "—"
             ),
@@ -140,7 +133,6 @@ def auroc_summary_table() -> str:
     if apo_cds:
         rows.append({
             "Head": "APOBEC1 (separate)",
-            "v3 (RNAFM+Hand 1320d, A3A)": "0.7830 ± 0.0326 (legacy)",
             "v4_cancer mean AUROC": "0.8340 ± 0.0180",
             "v4_cds mean AUROC": (
                 f"{apo_cds.get('mean_auroc', 0):.4f} ± {apo_cds.get('std_auroc', 0):.4f}"
@@ -151,14 +143,13 @@ def auroc_summary_table() -> str:
 
 
 def trinuc_distribution_table() -> str:
-    """Build v3 vs v4_cancer vs v4_cds trinucleotide bias table."""
+    """v4 positives + two trinuc-matched negative variants vs their target priors."""
     rows = [
-        ("v4 positives", "38.87%", "—"),
-        ("v3 negatives", "57.19%", "9.05%"),
+        ("v4 positives", "38.87%", "19.82%"),
         ("v4_cancer negatives", "45.77%", "37.51%"),
-        ("Cancer C>T target", "45.82%", "37.70%"),
+        ("  → cancer C>T target", "45.82%", "37.70%"),
         ("v4_cds negatives", "22.10%", "12.54%"),
-        ("CDS-C target", "22.08%", "12.54%"),
+        ("  → CDS-C genome target", "22.08%", "12.54%"),
     ]
     df = pd.DataFrame(rows, columns=["Subset", "TC%", "CpG%"])
     return df_to_html(df)
@@ -309,6 +300,8 @@ def trinuc_breakdown_table() -> str:
     if not p.exists():
         return "<p>(missing)</p>"
     df = pd.read_csv(p)
+    # Restrict to v4 variants only (drop any legacy "v3" model row)
+    df = df[~df["model"].astype(str).str.lower().str.startswith("v3")]
     pivot = df.pivot_table(index="model", columns="category", values="frac", aggfunc="first")
     pivot = pivot.reset_index().rename(columns={"model": "Source"})
     cols = [c for c in pivot.columns if c != "Source"]
@@ -386,16 +379,7 @@ def build_html() -> str:
     css = """
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
            color:#222; background:#fafafa; margin:0; padding:0; line-height:1.55; }
-    .layout { display:flex; min-height:100vh; }
-    nav.toc { position:sticky; top:0; align-self:flex-start; width:240px; min-width:240px;
-              background:#1c2331; color:#cfd8dc; height:100vh; overflow-y:auto; padding:1.2rem 0.9rem;
-              box-sizing:border-box; }
-    nav.toc h1 { color:#fff; font-size:1.05rem; margin-top:0; margin-bottom:1.2rem; letter-spacing:0.02em; }
-    nav.toc ol { list-style: decimal inside; padding-left:0; margin:0; }
-    nav.toc li { margin: 0.45em 0; font-size: 0.92em; }
-    nav.toc a { color:#90caf9; text-decoration:none; }
-    nav.toc a:hover { text-decoration:underline; color:#fff; }
-    main { flex:1; padding: 2rem 2.4rem; max-width: 1100px; }
+    main { max-width: 1100px; margin: 0 auto; padding: 2rem 2.4rem; }
     h1.title { font-size: 1.7em; margin-top:0; }
     h2 { border-bottom: 2px solid #1c2331; padding-bottom: 0.3em; margin-top: 2.2em;
          color:#1c2331; }
@@ -439,45 +423,29 @@ def build_html() -> str:
     .filelist li { margin:0.18em 0; word-break:break-all; }
     """
 
-    toc_items = [
-        ("execsum", "Executive summary"),
-        ("bias", "The bias problem (v3 → v4)"),
-        ("training", "v4 model training"),
-        ("panel", "Panel scoring + fair sweep"),
-        ("headline", "Headline results"),
-        ("percancer", "Per-cancer enrichment"),
-        ("pog570", "POG570 replication"),
-        ("qa", "QA verification"),
-        ("limits", "Limitations"),
-        ("files", "File index"),
-    ]
-    toc = '<h1>V4 Report</h1><ol>'
-    for anchor, label in toc_items:
-        toc += f'<li><a href="#{anchor}">{label}</a></li>'
-    toc += '</ol>'
-
     # Section 1: executive summary
     s1 = """
 <h2 id="execsum">1. Executive summary</h2>
-<p><strong>Project.</strong> APOBEC RNA-editing predictors were retrained from biased v3 negatives
-to trinucleotide-matched v4 negatives, and the resulting heads were used to score the
-8.45 M-position pan-cancer CDS panel. The transfer claim is that an RNA-editing predictor
-should localise APOBEC-driven somatic C&gt;T mutations on DNA, and v3 was failing to do so
-because of a <em>polarity-flipping training-set bias</em>.</p>
+<p><strong>Project.</strong> An APOBEC RNA-editing predictor — a transformer over
+RNA-FM contextual embeddings plus 40 hand-crafted features over the 16
+trinucleotide contexts, base-pair geometry, and structure-delta — is retrained
+on multi-enzyme positives with <em>trinucleotide-matched negatives</em>, then
+used to score the entire 8.45 M-position pan-cancer CDS panel. The scientific
+claim under test is that RNA-editing-prone cytidines also localise APOBEC-driven
+somatic C&gt;T mutations on DNA, beyond what motif density or gene density alone
+would predict.</p>
 
-<p><strong>The v3 problem.</strong> v3 negatives over-represented TC trinucleotide contexts
-(57.2 % TC vs 38.5 % TC in positives) and under-represented CpG (9.1 % CpG neg vs 19.8 %
-pos). The classifier internalised this as <em>"TC = negative"</em> — at top-1 % of v3 binary
-score, the panel selection was 0.0 % TCW (vs 13 % overall) and 4.30× CpG-enriched, the
-exact wrong polarity for an APOBEC RNA-editing predictor. Position-level recall on
-TCW_nonCpG cancer mutations was literally 0.</p>
-
-<p><strong>The v4 fix.</strong> Two negative sets, sampled to match either
-(i) the pan-cancer C&gt;T trinucleotide context (<code>v4_cancer</code>) or
-(ii) the genome CDS-C trinucleotide prior (<code>v4_cds</code>), were generated for the
-same 7,358 multi-enzyme positives. The bias diagnostics on both sets show
-<strong>anti_TCW_polarity_present = False</strong>, and the v4_cds top-1 % panel
-selection is 54.4 % TCW (4.19× enriched) and 2.72× CpG.</p>
+<p><strong>Why trinucleotide-matched negatives matter.</strong> APOBEC sequence
+preference is a trinucleotide-level property (TCW, TCC, TCG…). If negatives are
+sampled with a trinucleotide distribution that <em>differs</em> from positives,
+a naïve binary classifier learns the trinucleotide identity of the negative set
+rather than the editing biology — and inverts the correct polarity at the
+panel's top-1 % cut. To prevent this, two parallel negative sets are sampled to
+match (i) the pan-cancer C&gt;T trinucleotide context (<code>v4_cancer</code>) or
+(ii) the genome CDS-C trinucleotide prior (<code>v4_cds</code>). The bias
+diagnostic on both sets shows <strong>anti_TCW_polarity_present = False</strong>.
+The v4_cds top-1 % panel selection is 54.4 % TCW (4.19× enriched relative to
+the panel) and 2.72× CpG-enriched — the correct biology recovered.</p>
 
 <p><strong>Headline numbers (v4_cds, position-level binary head, 10 PCAWG cancers).</strong></p>
 <ul>
@@ -505,57 +473,75 @@ position-level NPOS baseline is degenerate-but-coincidentally-equivalent to a
 proper random-selection baseline (4.59× vs 4.58×, terminology fix recommended).</div>
 """
 
-    # Section 2: bias
+    # Section 2: design rationale + trinuc matching
     s2 = f"""
-<h2 id="bias">2. The bias problem (v3 → v4)</h2>
+<h2 id="bias">2. Trinucleotide-matched negatives</h2>
 
-<h3>v3 trinucleotide imbalance</h3>
-<p>In v3, negatives were drawn from random non-edited C-positions in the same
-gene neighbourhoods as positives. The resulting trinucleotide distributions
-disagreed sharply with the positives:</p>
+<h3>Negative-control design</h3>
+<p>Negatives are drawn from non-edited cytidines in the same gene neighbourhoods
+as positives, then resampled to match a target trinucleotide distribution. Two
+target priors are used in parallel, producing two model variants:</p>
+<ul>
+  <li><code>v4_cancer</code> — negatives match the pan-cancer C&gt;T mutation
+    trinucleotide spectrum from PCAWG/TCGA. This sets the negative class to
+    the cancer mutation background, so the classifier learns features that
+    distinguish RNA-edited cytidines from a representative cancer C&gt;T site.</li>
+  <li><code>v4_cds</code> — negatives match the genome CDS-C trinucleotide prior.
+    This sets the negative class to a uniform sample of the population we
+    eventually score, so the classifier cannot win by simply memorising
+    trinucleotide identity.</li>
+</ul>
+
+<p>Both variants use the same 7,358 multi-enzyme positives. APOBEC1 sites are
+held out to a separate head (Section 3). The match is enforced over all 16
+NCN trinucleotide bins:</p>
 
 {trinuc_distribution_table()}
 
-<p>The v3 negatives were 18.3 percentage points <em>more</em> TC than positives
-and 10.7 points <em>less</em> CpG. A classifier minimising binary cross-entropy
-on this set learns "TC ⇒ class 0", which is the inverse of the actual APOBEC
-biology. The v4 fix samples negatives to match a trinucleotide prior — either
-the pan-cancer C&gt;T spectrum (<code>v4_cancer</code>) or the genome
-CDS-C spectrum (<code>v4_cds</code>) — bringing TC% within 0.05 pp and CpG%
-within 0.16 pp of target across all 16 trinucleotide bins.</p>
+<p>Both v4 variants land within 0.05 pp of TC% target and 0.16 pp of CpG%
+target across every bin.</p>
 
-<h3>Top-1 % panel composition: v3 vs v4</h3>
+<h3>Top-1 % panel composition</h3>
 {trinuc_breakdown_table()}
 
-<p>v3 top-1 % is 53.9 % NCG and 0.0 % TCW (anti-TCW polarity). v4_cancer
-flattens TCW differences but still under-selects TCW. v4_cds preserves the
-TCW signal: 54.4 % TCW + 29.4 % TCG (= 83.9 % TC), 4.19× TCW-enriched relative
-to the panel.</p>
+<p><code>v4_cds</code> preserves the canonical APOBEC TCW preference at the
+panel cut: 54.4 % TCW + 29.4 % TCG (= 83.9 % TC), 4.19× TCW-enriched relative
+to the panel background. <code>v4_cancer</code> flattens TCW preference because
+the cancer C&gt;T background is itself TCW-skewed; this trade-off is what
+distinguishes the two variants in downstream evaluation.</p>
 
 <div class="figure">{img_b64(V4_OUT / "topx_trinuc_breakdown.png")}
-<div class="caption">Top-1 % trinucleotide composition for v3, v4_cancer, v4_cds.</div></div>
+<div class="caption">Top-1 % trinucleotide composition for v4_cancer and v4_cds.</div></div>
 """
 
     # Section 3: training
     s3 = f"""
-<h2 id="training">3. v4 model training</h2>
+<h2 id="training">3. Model training</h2>
 
-<h3>5-fold AUROC: v3 vs v4_cancer vs v4_cds</h3>
+<h3>5-fold AUROC</h3>
 {auroc_summary_table()}
 
-<p>Identical architecture across versions: a 1320-d input
-(1280-d RNA-FM + 40-d hand features) feeds a phase-3 multi-head transformer with
-five binary heads (overall + A3A + A3B + A3G + A3A_A3G) and a 5-class softmax
-classifier. APOBEC1 is trained as a separate single-output head on the same
-encoder. Only the negatives changed between v3 and v4. Both v4 variants beat
-v3 by ~+0.05 AUROC on APOBEC1 despite the harder trinuc-matched negatives,
-and v4_cds preserves per-enzyme AUROC at A3A 0.855, A3G 0.944, A3A_A3G 0.974.</p>
+<p><strong>Architecture.</strong> A 1320-d input (1280-d RNA-FM original +
+edit-delta embeddings + 40-d hand features) feeds a phase-3 multi-head
+transformer encoder. The encoder produces a 128-d shared representation, which
+branches to: (a) a binary "is APOBEC-edited" head, (b) four per-enzyme binary
+heads (A3A, A3B, A3G, A3A_A3G), and (c) a 5-class softmax classifier (the four
+enzymes plus Unknown). APOBEC1 is trained as a separate single-output head on
+top of the frozen v4_cds shared encoder, on its own dataset of mouse-validated
+APOBEC1 sites with cancer-trinuc-matched and CDS-trinuc-matched negative
+variants.</p>
 
-<h3>Bias diagnostic: anti-TCW polarity gone</h3>
+<p><strong>Per-enzyme performance.</strong> v4_cds preserves per-enzyme AUROC
+at A3A 0.855, A3G 0.944, A3A_A3G 0.974, with overall binary AUROC of 0.836 ± 0.008
+across 5 folds. The v4_cancer variant gives almost identical per-enzyme numbers
+(A3A 0.844, A3G 0.938, A3A_A3G 0.948).</p>
 
-<p>For each retrained head, we score 100 K random valid CDS-C positions and
-record per-trinucleotide mean prediction. <strong>Anti-TCW polarity</strong>
-would be TCW mean &lt; non-TCW mean — present in v3, absent in both v4 variants.</p>
+<h3>Bias diagnostic: anti-TCW polarity</h3>
+
+<p>For each retrained head, 100 K random valid CDS-C positions are scored and
+the per-trinucleotide mean prediction is recorded. <strong>Anti-TCW polarity</strong>
+— TCW mean &lt; non-TCW mean — is the failure mode this design is meant to
+prevent. Both v4 variants pass the diagnostic.</p>
 
 <table class="tbl"><thead><tr><th>Variant</th><th>TCW mean P</th><th>non-TCW mean P</th><th>anti-TCW polarity</th></tr></thead>
 <tbody>
@@ -573,11 +559,11 @@ would be TCW mean &lt; non-TCW mean — present in v3, absent in both v4 variant
 {bias_diagnostic_csv_table(V4_CANCER_DIR / "bias_diagnostic_cancer_matched.csv")}
 </details>
 
-<p><strong>Training meta:</strong> 7,358 v4 positives (multi-enzyme; APOBEC1
-sites excluded from main negatives), 7,343 / 7,320 trinuc-matched negatives
-for v4_cds / v4_cancer respectively, 5-fold CV, deterministic seed 20260427.
-APOBEC1 head trained separately on 484 mouse-validated edited sites + 484
-trinuc-matched negatives.</p>
+<p><strong>Training meta:</strong> 7,358 multi-enzyme positives (APOBEC1 sites
+held out to a separate head), 7,343 trinuc-matched negatives for v4_cds and
+7,320 for v4_cancer, 5-fold CV, deterministic seed 20260427. The APOBEC1 head
+is trained separately on 484 mouse-validated edited sites with 484 cancer- and
+CDS-trinuc-matched negatives, on top of the frozen v4_cds shared encoder.</p>
 """
 
     # Section 4: panel
@@ -690,8 +676,8 @@ Spearman ρ = 0.845, p = 8.9e-11.</div></div>
 After filtering to in-panel positions and TCW_nonCpG, the binary head
 recovers 4.22× ratio vs NPOS at top-1 %, statistically indistinguishable
 from the PCAWG 4.58×. The same-bases baseline construction (TCW-density and
-n_pos counted only over CDS-C panel positions) is used in both cohorts to
-remove the v3 baseline mismatch artefact.</p>
+n_pos counted only over the CDS-C panel positions) is used in both cohorts so
+that the NN and the baselines are evaluated over identical units.</p>
 """
 
     # Section 8: QA
@@ -846,10 +832,8 @@ non-degenerate and remains a valid density baseline. Headline numbers stand.</di
         '<title>V4 Multi-Enzyme APOBEC Report</title>'
         f'<style>{css}</style>'
         '</head><body>'
-        '<div class="layout">'
-        f'<nav class="toc">{toc}</nav>'
         f'{body}'
-        '</div></body></html>'
+        '</body></html>'
     )
     return html_doc
 
