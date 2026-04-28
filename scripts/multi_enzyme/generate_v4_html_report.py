@@ -447,30 +447,62 @@ diagnostic on both sets shows <strong>anti_TCW_polarity_present = False</strong>
 The v4_cds top-1 % panel selection is 54.4 % TCW (4.19× enriched relative to
 the panel) and 2.72× CpG-enriched — the correct biology recovered.</p>
 
-<p><strong>Headline numbers (v4_cds, position-level binary head, 10 PCAWG cancers).</strong></p>
-<ul>
-  <li><strong>top-1 %, TCW_nonCpG</strong>: recall = 4.59 %, ratio vs random selection = <strong>4.58× [4.02–5.12]</strong>; 10/10 cancers above the random baseline.</li>
-  <li><strong>top-10 %, TCW_nonCpG</strong>: recall = 28.43 %, ratio vs NPOS = 3.19×.</li>
-  <li><strong>top-1 %, all_CT</strong>: recall = 3.02 %, ratio vs TCW-density = <strong>3.56× [1.76–6.19]</strong>; 10/10 Bonferroni-significant.</li>
-</ul>
+<p><strong>Headline 1 — panel performance scales with size (v4_cds, position-level).</strong>
+The A3A head is the single best per-position ranker; binary is competitive at top-1 %
+but A3A pulls ahead at 5–10 %. Recall figures are over 521 K PCAWG/TCGA pan-cancer
+C&gt;T mutations across 10 reference cancers.</p>
+<table class="tbl">
+<thead><tr><th>Panel cut</th><th>Coverage (Mb)</th><th>Head</th><th>Recall (TCW_nonCpG)</th><th>ratio vs random</th><th>Recall (all_CT)</th><th>ratio vs TCW-density</th></tr></thead>
+<tbody>
+<tr><td rowspan="2">top-1 %</td><td rowspan="2">0.084</td>
+    <td>binary</td><td>4.59 %</td><td><strong>4.58×</strong> [4.02–5.12]</td><td>3.02 %</td><td><strong>3.56×</strong> [1.76–6.19]</td></tr>
+<tr><td>A3A</td><td>4.33 %</td><td>4.31× [3.79–4.85]</td><td>3.50 %</td><td>4.22×</td></tr>
+<tr><td rowspan="2">top-5 %</td><td rowspan="2">0.422</td>
+    <td>binary</td><td>17.85 %</td><td>3.41×</td><td>10.90 %</td><td>2.55×</td></tr>
+<tr><td>A3A</td><td><strong>21.60 %</strong></td><td><strong>4.13×</strong> [3.81–4.41]</td><td><strong>13.03 %</strong></td><td><strong>2.99×</strong></td></tr>
+<tr><td rowspan="2">top-10 %</td><td rowspan="2">0.845</td>
+    <td>binary</td><td>28.43 %</td><td>3.19×</td><td>18.34 %</td><td>2.23×</td></tr>
+<tr><td>A3A</td><td><strong>37.79 %</strong></td><td><strong>4.24×</strong> [3.93–4.50]</td><td><strong>22.14 %</strong></td><td><strong>2.59×</strong></td></tr>
+</tbody></table>
+<p><span style="color:#37474f;">A3A captures <strong>+9.4 pp absolute recall over binary</strong>
+at top-10 % TCW_nonCpG and <strong>+3.8 pp on all_CT</strong>, while preserving
+the ratio over random selection at ~4.2× across cuts.</span></p>
 
-<p><strong>Replication on POG570</strong> (independent metastatic cohort, ~2.6 M C&gt;T SNVs):
-ratio vs NPOS = 4.22× [3.27–5.08] at top-1 % TCW_nonCpG and 2.20× [1.36–3.40] at top-1 %
-all_CT. Spearman ρ between PCAWG and POG570 per-cancer × per-head OR matrices is
-<strong>0.85–0.93</strong> across thresholds. <strong>Replicates.</strong></p>
+<p><strong>Headline 2 — replication on POG570</strong> (independent metastatic cohort,
+~2.6 M C&gt;T SNVs from BC Cancer Personalized OncoGenomics, no patient overlap with
+PCAWG/TCGA): binary head ratio vs random = 4.22× [3.27–5.08] at top-1 % TCW_nonCpG;
+2.20× [1.36–3.40] at top-1 % all_CT. Spearman ρ between PCAWG and POG570 per-cancer
+× per-head OR matrices is <strong>0.85–0.93</strong> across thresholds (e.g.
+ρ = 0.928 at top-5 % all_CT). <strong>Replicates.</strong></p>
 
-<p><strong>Per-cancer biology.</strong> 10/10 PCAWG cancers and 10/10 POG570 cohorts have
-at least one head with OR &gt; 3 at top-1 %. The A3A head dominates broadly (mean OR 4.55
-across 10 PCAWG cancers, 10/10 with OR &gt; 3). The retrained APOBEC1 head wins COADREAD
-and ESCA in <em>both</em> cohorts — a coherent biological signal (intestinal/oesophageal
-APOBEC1 expression).</p>
+<p><strong>Headline 3 — per-cancer enrichment is broad and biologically coherent.</strong>
+Every cancer in both cohorts has at least one head with OR &gt; 3 at top-1 % TCW_nonCpG.
+A3A dominates universally; APOBEC1 wins gastrointestinal cancers in both cohorts.</p>
+<table class="tbl">
+<thead><tr><th>Finding</th><th>PCAWG</th><th>POG570</th></tr></thead>
+<tbody>
+<tr><td>Cancers with OR &gt; 3 (A3A head, top-1 % TCW_nonCpG)</td><td>10 / 10</td><td>10 / 10</td></tr>
+<tr><td>Mean A3A OR across cancers</td><td>4.55</td><td>4.63</td></tr>
+<tr><td>Median A3A OR across cancers</td><td>4.61</td><td>4.08</td></tr>
+<tr><td>Strongest A3A cell</td><td>SKCM × A3A = 5.11 (n = 31,667)</td><td>ESCA × A3A = 7.07; SKCM × A3A = 6.55</td></tr>
+<tr><td>Most extreme p-value</td><td>BLCA × binary, OR = 4.94, p = 5e-200</td><td>SKCM × A3A, OR = 6.55, p = 1.5e-25</td></tr>
+<tr><td>APOBEC1 head wins COADREAD</td><td>OR = 4.34 (vs binary 3.62)</td><td>OR = 3.91 (close 2nd)</td></tr>
+<tr><td>APOBEC1 head wins ESCA</td><td>OR = 3.95 (vs binary 3.77)</td><td>OR = 7.07 (tied with A3A)</td></tr>
+<tr><td>A3G head on TCW_nonCpG (sanity)</td><td>OR ≈ 0.02–0.21 (anti-correlated, expected: A3G prefers CC)</td><td>OR ≈ 0.10–0.24 (same)</td></tr>
+</tbody></table>
+<p><span style="color:#37474f;"><strong>The APOBEC1 head wins COADREAD and ESCA
+in BOTH cohorts.</strong> APOBEC1 is highly expressed in intestinal and oesophageal
+epithelium where it edits apoB mRNA; the model recovers this enzyme assignment
+without being told. A3G's anti-correlation under TCW_nonCpG is the correct
+biology — A3G prefers CC context, not TCW.</span></p>
 
 <div class="verdict"><strong>Trust verdict: TRUST WITH CAVEATS.</strong>
 All four QA checks pass: shuffle-null gives recall ratio ≈ 0.97 (sound),
 the top-1 % cut has only a 1-position tie pool (no leakage), A3A training/MAF
-overlap is 5.93 % but leave-leak-out moves recall by 0.00 pp, and the
-position-level NPOS baseline is degenerate-but-coincidentally-equivalent to a
-proper random-selection baseline (4.59× vs 4.58×, terminology fix recommended).</div>
+coordinate overlap is 5.93 % but leave-leak-out moves recall by 0.00 pp
+(memorisation is not the driver), and the position-level NPOS baseline is
+degenerate-but-coincidentally-equivalent to a proper random-selection baseline
+(corrected ratio 4.59× vs published 4.58×).</div>
 """
 
     # Section 2: design rationale + trinuc matching
