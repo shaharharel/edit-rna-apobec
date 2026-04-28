@@ -496,13 +496,6 @@ epithelium where it edits apoB mRNA; the model recovers this enzyme assignment
 without being told. A3G's anti-correlation under TCW_nonCpG is the correct
 biology — A3G prefers CC context, not TCW.</span></p>
 
-<div class="verdict"><strong>Trust verdict: TRUST WITH CAVEATS.</strong>
-All four QA checks pass: shuffle-null gives recall ratio ≈ 0.97 (sound),
-the top-1 % cut has only a 1-position tie pool (no leakage), A3A training/MAF
-coordinate overlap is 5.93 % but leave-leak-out moves recall by 0.00 pp
-(memorisation is not the driver), and the position-level NPOS baseline is
-degenerate-but-coincidentally-equivalent to a proper random-selection baseline
-(corrected ratio 4.59× vs published 4.58×).</div>
 """
 
     # Section 2: design rationale + trinuc matching
