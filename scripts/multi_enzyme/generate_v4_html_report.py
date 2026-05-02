@@ -498,50 +498,11 @@ A3G prefers CC context, not TCW.</span></p>
 
 """
 
-    # Section 2: design rationale + trinuc matching
-    s2 = f"""
-<h2 id="bias">2. Trinucleotide-matched negatives</h2>
-
-<h3>Negative-control design</h3>
-<p>Negatives are drawn from non-edited cytidines in the same gene neighbourhoods
-as positives, then resampled to match a target trinucleotide distribution. Two
-target priors are used in parallel, producing two model variants:</p>
-<ul>
-  <li><code>v4_cancer</code> — negatives match the pan-cancer C&gt;T mutation
-    trinucleotide spectrum from PCAWG/TCGA. This sets the negative class to
-    the cancer mutation background, so the classifier learns features that
-    distinguish RNA-edited cytidines from a representative cancer C&gt;T site.</li>
-  <li><code>v4_cds</code> — negatives match the genome CDS-C trinucleotide prior.
-    This sets the negative class to a uniform sample of the population we
-    eventually score, so the classifier cannot win by simply memorising
-    trinucleotide identity.</li>
-</ul>
-
-<p>Both variants use the same 7,358 multi-enzyme positives. APOBEC1 sites are
-held out to a separate head (Section 3). The match is enforced over all 16
-NCN trinucleotide bins:</p>
-
-{trinuc_distribution_table()}
-
-<p>Both v4 variants land within 0.05 pp of TC% target and 0.16 pp of CpG%
-target across every bin.</p>
-
-<h3>Top-1 % panel composition</h3>
-{trinuc_breakdown_table()}
-
-<p><code>v4_cds</code> preserves the canonical APOBEC TCW preference at the
-panel cut: 54.4 % TCW + 29.4 % TCG (= 83.9 % TC), 4.19× TCW-enriched relative
-to the panel background. <code>v4_cancer</code> flattens TCW preference because
-the cancer C&gt;T background is itself TCW-skewed; this trade-off is what
-distinguishes the two variants in downstream evaluation.</p>
-
-<div class="figure">{img_b64(V4_OUT / "topx_trinuc_breakdown.png")}
-<div class="caption">Top-1 % trinucleotide composition for v4_cancer and v4_cds.</div></div>
-"""
+    s2 = ""
 
     # Section 3: training
     s3 = f"""
-<h2 id="training">3. Model training</h2>
+<h2 id="training">2. Model training</h2>
 
 <h3>5-fold AUROC</h3>
 {auroc_summary_table()}
@@ -593,7 +554,7 @@ CDS-trinuc-matched negatives, on top of the frozen v4_cds shared encoder.</p>
 
     # Section 4: panel
     s4 = """
-<h2 id="panel">4. Panel scoring + fair sweep</h2>
+<h2 id="panel">3. Panel scoring + fair sweep</h2>
 
 <p><strong>Panel.</strong> 8,446,859 hg19 CDS-C positions, scored by all 6 heads
 (<code>score_binary</code>, <code>score_A3A</code>, <code>score_A3B</code>,
@@ -623,7 +584,7 @@ corrected over the test family (q &lt; 3.97e-5 for the 1,260-cell v4 sweep).
 
     # Section 5: headline
     s5 = f"""
-<h2 id="headline">5. Headline results</h2>
+<h2 id="headline">4. Headline results</h2>
 
 <h3>5a. Position-level top-X % recall (binary head, v4_cds)</h3>
 <p class="legend">Cells: <span class="green">ratio &gt; 3</span>
@@ -646,7 +607,7 @@ filter × baseline; markers are the 21 constructions per head.</div></div>
 
     # Section 6: per-cancer
     s6 = f"""
-<h2 id="percancer">6. Per-cancer enrichment (advisor v2 style)</h2>
+<h2 id="percancer">5. Per-cancer enrichment</h2>
 
 <p class="legend">Cells: <span class="green">OR &gt; 3</span>
 <span class="yellow">1.5–3</span> <span class="red">&lt; 1.5</span>.</p>
@@ -655,18 +616,9 @@ filter × baseline; markers are the 21 constructions per head.</div></div>
 {per_cancer_pivot(V4_OUT / "per_cancer_enrichment_v4_pcawg.csv", 0.01, "filter_TCW_nonCpG", "PCAWG — top-1% — filter_TCW_nonCpG")}
 {per_cancer_pivot(V4_OUT / "per_cancer_enrichment_v4_pcawg.csv", 0.01, "filter_all_CT", "PCAWG — top-1% — filter_all_CT")}
 
-<div class="figure">{img_b64(V4_OUT / "per_cancer_OR_pcawg_top1pct.png")}
-<div class="caption">PCAWG — odds ratios at top-1 % TCW_nonCpG, all 6 heads × 10 cancers.</div></div>
-
-<div class="figure">{img_b64(V4_OUT / "per_cancer_OR_pcawg_top1pct_allCT.png")}
-<div class="caption">PCAWG — same panel, all_CT filter.</div></div>
-
 <h3>POG570 — 10 cohorts</h3>
 {per_cancer_pivot(V4_OUT / "per_cancer_enrichment_v4_pog570.csv", 0.01, "filter_TCW_nonCpG", "POG570 — top-1% — filter_TCW_nonCpG")}
 {per_cancer_pivot(V4_OUT / "per_cancer_enrichment_v4_pog570.csv", 0.01, "filter_all_CT", "POG570 — top-1% — filter_all_CT")}
-
-<div class="figure">{img_b64(V4_OUT / "per_cancer_OR_pog570_top1pct.png")}
-<div class="caption">POG570 — odds ratios at top-1 % TCW_nonCpG.</div></div>
 
 <h3>PCAWG vs POG570 concordance</h3>
 <div class="figure">{img_b64(V4_OUT / "per_cancer_OR_concordance_top1pct.png")}
@@ -686,16 +638,10 @@ Spearman ρ = 0.845, p = 8.9e-11.</div></div>
 
     # Section 7: POG570
     s7 = f"""
-<h2 id="pog570">7. Independent cohort replication (POG570)</h2>
+<h2 id="pog570">6. Independent cohort replication (POG570)</h2>
 
 <h3>Side-by-side PCAWG vs POG570 effect sizes</h3>
 {pcawg_vs_pog570_replication_table()}
-
-<h3>POG570 detailed effect sizes (binary head, position-level)</h3>
-{pog570_summary_table()}
-
-<div class="figure">{img_b64(POG570_DIR / "recall_curve_pog570_v4.png")}
-<div class="caption">POG570 — recall curve at position level, binary head, both filters.</div></div>
 
 <p>POG570 contains 2.63 M C&gt;T SNVs across 10 cohorts mapped to PCAWG cancers.
 After filtering to in-panel positions and TCW_nonCpG, the binary head
@@ -707,7 +653,7 @@ that the NN and the baselines are evaluated over identical units.</p>
 
     # Section 8: QA
     s8 = """
-<h2 id="qa">8. QA verification</h2>
+<h2 id="qa">7. QA verification</h2>
 
 <p>All four checks pass. See <code>QA_VERIFICATION_RESULTS.md</code> for source.</p>
 
@@ -736,7 +682,7 @@ non-degenerate and remains a valid density baseline. Headline numbers stand.</di
 
     # Section 8b: ClinVar Finding 1 — nonsense enrichment
     s8b = """
-<h2 id="clinvar_nonsense">9. ClinVar — nonsense enrichment of top model predictions</h2>
+<h2 id="clinvar_nonsense">8. ClinVar — nonsense enrichment of top model predictions</h2>
 
 <h3>Methodology</h3>
 <p>Score every C&gt;T variant in ClinVar (1.69 M variants) with v4 heads and v3 GB
@@ -790,7 +736,7 @@ universe rate. v4 A3A_A3G is the only mildly elevated head (2.30 %, 1.58×, chi�
 
     # Section 8c: ClinVar Finding 2 — TSG enrichment
     s8c = """
-<h2 id="clinvar_tsg">10. ClinVar — pathogenic vs benign in tumor suppressor genes</h2>
+<h2 id="clinvar_tsg">9. ClinVar — pathogenic vs benign in tumor suppressor genes</h2>
 
 <h3>Methodology</h3>
 <p>For each tumor suppressor gene (TSG), compare model scores on <strong>pathogenic
@@ -865,7 +811,7 @@ p-value across genes, and a random-shuffle null (shuffle scores randomly across
 
     # Section 9: limitations
     s9 = """
-<h2 id="limits">11. Limitations &amp; open questions</h2>
+<h2 id="limits">10. Limitations &amp; open questions</h2>
 
 <ul>
   <li><strong>Bonferroni at large test family.</strong> The fair sweep tests
@@ -893,89 +839,13 @@ p-value across genes, and a random-shuffle null (shuffle scores randomly across
 </ul>
 """
 
-    # Section 10: file index
-    s10 = f"""
-<h2 id="files">12. File index</h2>
-
-<h3>v4 model checkpoints &amp; CV results</h3>
-<ul class="filelist">
-  <li>{V4_CANCER_DIR}/cv_results.json</li>
-  <li>{V4_CANCER_DIR}/phase3_v4_cancer.pt</li>
-  <li>{V4_CANCER_DIR}/bias_diagnostic_cancer_matched.csv</li>
-  <li>{V4_CANCER_DIR}/bias_diagnostic_cancer_matched_summary.json</li>
-  <li>{V4_CDS_DIR}/cv_results.json</li>
-  <li>{V4_CDS_DIR}/phase3_v4_cds.pt</li>
-  <li>{V4_CDS_DIR}/bias_diagnostic_cds_unbiased.csv</li>
-  <li>{V4_CDS_DIR}/bias_diagnostic_cds_unbiased_summary.json</li>
-  <li>{APOBEC1_CDS_DIR}/cv_results.json</li>
-  <li>{APOBEC1_CDS_DIR}/apobec1_head_v4_cds.pt</li>
-</ul>
-
-<h3>Panel scores &amp; sweeps</h3>
-<ul class="filelist">
-  <li>{V4_OUT}/panel_scores_v4_cds.parquet</li>
-  <li>{V4_OUT}/panel_scores_v4_cds_apobec1retrained.parquet</li>
-  <li>{V4_OUT}/panel_scores_v4_cancer.parquet</li>
-  <li>{V4_OUT}/sweep_v4_cds_fair.csv</li>
-  <li>{V4_OUT}/sweep_v4_cds_fair_per_cancer.csv</li>
-  <li>{V4_OUT}/sweep_v4_cancer_fair.csv</li>
-  <li>{V4_OUT}/topx_threshold_sweep_v4_cds.csv</li>
-  <li>{V4_OUT}/topx_threshold_sweep_v4_cancer.csv</li>
-  <li>{V4_OUT}/topx_sweep_v4_cds_all_heads.csv</li>
-  <li>{V4_OUT}/topx_trinuc_breakdown.csv</li>
-</ul>
-
-<h3>Per-cancer enrichment</h3>
-<ul class="filelist">
-  <li>{V4_OUT}/per_cancer_enrichment_v4_pcawg.csv</li>
-  <li>{V4_OUT}/per_cancer_enrichment_v4_pog570.csv</li>
-  <li>{POG570_DIR}/enrichment_v4_cds.csv</li>
-  <li>{POG570_DIR}/enrichment_v4_cds_per_cancer.csv</li>
-</ul>
-
-<h3>Reports / markdown</h3>
-<ul class="filelist">
-  <li>{V4_OUT}/V3_VS_V4_COMPARISON.md</li>
-  <li>{V4_OUT}/PER_CANCER_ENRICHMENT_V4.md</li>
-  <li>{V4_OUT}/APOBEC1_RETRAIN_RESULTS.md</li>
-  <li>{V4_OUT}/QA_VERIFICATION_RESULTS.md</li>
-  <li>{V4_OUT}/sweep_v4_cds_fair_RESULTS.md</li>
-  <li>{V4_OUT}/sweep_v4_cancer_fair_RESULTS.md</li>
-  <li>{POG570_DIR}/POG570_V4_RESULTS.md</li>
-  <li>{DATA_PREP_MD}</li>
-</ul>
-
-<h3>Figures (embedded above as base64)</h3>
-<ul class="filelist">
-  <li>{V4_OUT}/topx_trinuc_breakdown.png</li>
-  <li>{V4_OUT}/per_cancer_OR_pcawg_top1pct.png</li>
-  <li>{V4_OUT}/per_cancer_OR_pcawg_top1pct_allCT.png</li>
-  <li>{V4_OUT}/per_cancer_OR_pog570_top1pct.png</li>
-  <li>{V4_OUT}/per_cancer_OR_concordance_top1pct.png</li>
-  <li>{V4_OUT}/sweep_v4_cds_fair.png</li>
-  <li>{POG570_DIR}/recall_curve_pog570_v4.png</li>
-</ul>
-
-<h3>Data prep &amp; scripts</h3>
-<ul class="filelist">
-  <li>{ROOT}/data/processed/multi_enzyme/splits_multi_enzyme_v4_cds_unbiased.csv</li>
-  <li>{ROOT}/data/processed/multi_enzyme/splits_multi_enzyme_v4_cancer_matched.csv</li>
-  <li>{ROOT}/data/processed/multi_enzyme/multi_enzyme_sequences_v4_cds_unbiased.json</li>
-  <li>{ROOT}/data/processed/multi_enzyme/multi_enzyme_sequences_v4_cancer_matched.json</li>
-  <li>{ROOT}/scripts/multi_enzyme/build_v4_datasets.py</li>
-  <li>{ROOT}/scripts/multi_enzyme/build_v4_cancer_matched_dataset.py</li>
-  <li>{ROOT}/scripts/multi_enzyme/generate_v4_negatives.py</li>
-  <li>{ROOT}/scripts/multi_enzyme/build_apobec1_v4_datasets.py</li>
-  <li>{ROOT}/scripts/multi_enzyme/build_apobec1_retrain_summary.py</li>
-  <li>{ROOT}/scripts/multi_enzyme/generate_v4_html_report.py <em>(this report)</em></li>
-</ul>
-"""
+    s10 = ""
 
     body = (
         '<main>'
         + f'<h1 class="title">V4 Multi-Enzyme APOBEC Report — '
         + 'RNA-Editing Predictor → DNA Somatic Mutation Transfer</h1>'
-        + '<p style="color:#666;">Generated: 2026-04-28 — see file index for sources.</p>'
+        + '<p style="color:#666;">Generated: 2026-05-03.</p>'
         + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s8b + s8c + s9 + s10
         + '</main>'
     )
