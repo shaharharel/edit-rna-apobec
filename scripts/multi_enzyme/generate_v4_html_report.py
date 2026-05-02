@@ -734,9 +734,138 @@ The window-level NPOS baseline (number of panel C positions per window) is
 non-degenerate and remains a valid density baseline. Headline numbers stand.</div>
 """
 
+    # Section 8b: ClinVar Finding 1 — nonsense enrichment
+    s8b = """
+<h2 id="clinvar_nonsense">9. ClinVar — nonsense enrichment of top model predictions</h2>
+
+<h3>Methodology</h3>
+<p>Score every C&gt;T variant in ClinVar (1.69 M variants) with v4 heads and v3 GB
+for comparison. Among <strong>pathogenic + likely-pathogenic</strong> C&gt;T variants
+(n = 75,549), take the <strong>top-1000 by score</strong> and compute the fraction
+that are <em>nonsense</em> (premature stop codon). Compare to the universe baseline
+nonsense rate (47.4 %). Stratify by CpG context. Test for CpG bias by checking what
+fraction of top-K predictions sit at CpG positions vs the 1.45 % universe baseline.</p>
+
+<h3>Results</h3>
+
+<table class="tbl">
+<thead><tr><th>Head</th><th>Stratum</th><th>Top-1000 nonsense rate</th><th>OR</th><th>95 % CI</th><th>p (Fisher)</th></tr></thead>
+<tbody>
+<tr><td>v3 GB (baseline)</td><td>all</td><td>59.6 %</td><td>1.65</td><td>[1.45, 1.87]</td><td>5.1e-15</td></tr>
+<tr><td>v3 GB</td><td>non-CpG</td><td>59.4 %</td><td>1.63</td><td>[1.44, 1.85]</td><td>1.4e-14</td></tr>
+<tr><td><strong>v4 binary</strong></td><td>all</td><td><strong>85.1 %</strong></td><td><strong>6.46</strong></td><td>[5.43, 7.69]</td><td>2.9e-138</td></tr>
+<tr><td><strong>v4 A3B</strong></td><td>non-CpG</td><td><strong>86.7 %</strong></td><td><strong>7.38</strong></td><td>[6.15, 8.87]</td><td>1.1e-151</td></tr>
+<tr><td>v4 A3A</td><td>non-CpG</td><td>78.7 %</td><td>4.17</td><td>[3.58, 4.85]</td><td>8.1e-93</td></tr>
+<tr><td>v4 apobec1_v4_cds</td><td>non-CpG</td><td>78.5 %</td><td>4.12</td><td>[3.54, 4.79]</td><td>1.4e-91</td></tr>
+</tbody></table>
+
+<p><strong>CpG-bias check (Diag A — independent diagnostic).</strong> The pathogenic
+universe is 1.45 % CpG-context. Among model top-1000 predictions:
+v4 binary 1.40 %, A3A 1.40 %, A3B 1.40 %, apobec1 1.50 % — all at or below the
+universe rate. v4 A3A_A3G is the only mildly elevated head (2.30 %, 1.58×, chi² p = 0.034).
+<strong>The nonsense enrichment is not driven by CpG bias.</strong></p>
+
+<h3>Insights</h3>
+<ul>
+  <li><strong>v4 dramatically exceeds v3 on the same data.</strong> Same ClinVar
+  set, same statistic: v3 GB OR = 1.65 → v4 binary OR = 6.46, v4 A3B OR = 7.38.
+  An ~4× stronger enrichment of premature-stop-creating variants in the model's
+  top picks.</li>
+  <li><strong>Replicates the V3 advisor finding exactly.</strong> v3 GB top-1000
+  nonsense rate of 59.6 % vs 47.4 % baseline matches the V3 advisor's reported
+  59.5 % vs 47.4 % (OR 1.64, p = 1.18e-14). The original signal was real and
+  reproducible.</li>
+  <li><strong>Robust across top-K cutoffs.</strong> The nonsense OR holds at
+  K = 100, 500, 1000, 2000, 5000 (Diag 1 / qa_diag1_topk.csv); not a hand-picked
+  threshold artefact.</li>
+  <li><strong>Biological interpretation.</strong> Positions that the model
+  identifies as APOBEC-editable are over-represented at codons where C&gt;T
+  produces a premature stop codon (CGA/CAA/CAG → TGA/TAA/TAG). The signal
+  survives CpG stratification (so it is not just the CGA→TGA path).</li>
+</ul>
+
+<p class="legend">Source: <code>experiments/apobec3a/outputs/clinvar_v4_full/finding1_nonsense_v4_full.csv</code> &amp;
+<code>qa_diagA_cpg_fraction.csv</code></p>
+"""
+
+    # Section 8c: ClinVar Finding 2 — TSG enrichment
+    s8c = """
+<h2 id="clinvar_tsg">10. ClinVar — pathogenic vs benign in tumor suppressor genes</h2>
+
+<h3>Methodology</h3>
+<p>For each tumor suppressor gene (TSG), compare model scores on <strong>pathogenic
++ likely-pathogenic</strong> C&gt;T variants vs <strong>benign + likely-benign</strong>
+variants in the same gene. Per-gene: require ≥3 variants in each class; sign test on
+"is mean(pathogenic score) &gt; mean(benign score)?". Three TSG gene lists for
+sensitivity:</p>
+<ul>
+  <li><strong>OncoKB CGC TSG (173 base, 128 testable)</strong> — primary, externally
+    curated by Memorial Sloan Kettering, mirrors COSMIC CGC's <code>Role contains TSG</code></li>
+  <li><strong>Tier-1 proxy (82 → 75 testable)</strong> — closer to the V3 advisor's "78"</li>
+  <li><strong>Curated 48</strong> — hand-selected familial cancer + DDR genes
+    (note: post-hoc curated; reported for continuity, not as the primary)</li>
+</ul>
+<p>Also computed: Mann-Whitney U per gene (effect-size aware), Stouffer combined
+p-value across genes, and a random-shuffle null (shuffle scores randomly across
+1.69 M ClinVar variants and re-run the per-TSG sign test 100 times).</p>
+
+<h3>Results</h3>
+
+<table class="tbl">
+<thead><tr><th>Gene list</th><th>Head</th><th>Wins / N (all)</th><th>Sign test p</th><th>Wins / N (non-CpG)</th></tr></thead>
+<tbody>
+<tr><td>OncoKB CGC TSG (n=128 testable)</td><td><strong>v3 GB</strong></td><td><strong>110/128 (86 %)</strong></td><td><strong>1.3e-17</strong></td><td>109/128 (85 %)</td></tr>
+<tr><td>OncoKB CGC TSG</td><td>v4 binary</td><td>103/128 (80 %)</td><td>9.7e-13</td><td>101/128 (79 %)</td></tr>
+<tr><td>OncoKB CGC TSG</td><td>v4 A3B</td><td>104/128 (81 %)</td><td>2.3e-13</td><td>100/128 (78 %)</td></tr>
+<tr><td>Tier-1 proxy (n=75)</td><td>v3 GB</td><td>65/75 (87 %)</td><td>2.6e-11</td><td>64/75 (85 %)</td></tr>
+<tr><td>Tier-1 proxy</td><td>v4 binary</td><td><strong>66/75 (88 %)</strong></td><td><strong>3.8e-12</strong></td><td>64/75 (85 %)</td></tr>
+<tr><td>Curated 48</td><td>v3 GB</td><td>44/48 (92 %)</td><td>7.6e-10</td><td>43/48 (90 %)</td></tr>
+<tr><td>Curated 48</td><td>v4 binary</td><td>39/48 (81 %)</td><td>7.6e-06</td><td>38/48 (79 %)</td></tr>
+</tbody></table>
+
+<p><strong>Robustness diagnostics (Diags B-D).</strong></p>
+<table class="tbl">
+<thead><tr><th>Test</th><th>Result for v3 GB × OncoKB-173</th></tr></thead>
+<tbody>
+<tr><td>Sign test (raw)</td><td>110/128, p = 1.33e-17</td></tr>
+<tr><td>Effect-size-filtered sign test (\|Δ\|≥0.05)</td><td>p = 6.40e-16 (survives)</td></tr>
+<tr><td>Stouffer meta-p across genes</td><td><strong>p = 3.0e-50</strong></td></tr>
+<tr><td>Per-gene Mann-Whitney p &lt; 0.05</td><td>34 / 128 (vs ~6 expected by chance)</td></tr>
+<tr><td>Random-shuffle null (100 shuffles)</td><td>Null mean wins = 65 (≈ n/2, sanity ✓); observed 110, empirical p &lt; 0.01</td></tr>
+<tr><td>Bonferroni at family α = 0.05/54</td><td><strong>34 / 54 cells survive</strong> (17/18 in all-stratum, 17/18 in non-CpG)</td></tr>
+</tbody></table>
+
+<h3>Insights</h3>
+<ul>
+  <li><strong>Replicates V3 advisor's "67/78" finding.</strong> V3 GB on OncoKB-128
+  matches at 86 % win rate (110/128). The TSG enrichment is real and reproducible.</li>
+  <li><strong>Direction holds across all 3 gene lists × 6 heads.</strong> Not
+  driven by gene-list cherry-picking. The Curated-48 has the highest win rate
+  but is also the post-hoc list — Tier-1 and OncoKB-128 confirm the result on
+  externally curated lists.</li>
+  <li><strong>Survives every robustness test.</strong> Effect-size threshold
+  (|Δ|≥0.05) does not collapse the win count. Stouffer meta-p (3e-50) is far
+  beyond the raw sign-test p. Random-shuffle null gives 65 ± 5.7 wins; observed
+  is 110 (8× the standard deviation above null). Bonferroni at the 54-cell
+  family leaves 34 surviving.</li>
+  <li><strong>v3 GB &gt; v4 in win rate, v4 still highly significant.</strong>
+  V3 GB has more graded scores than the saturating v4 sigmoids; this benefits
+  binary sign tests. The biological direction is the same; the absolute win
+  rate differs because of score-distribution shape, not signal.</li>
+  <li><strong>Biological interpretation.</strong> Pathogenic variants in TSGs
+  consistently sit at higher-editability positions than benign variants in the
+  same genes. Consistent with TSG pathogenic variants concentrating at
+  "stress-vulnerable" cytidines that APOBEC also targets.</li>
+</ul>
+
+<p class="legend">Source: <code>experiments/apobec3a/outputs/clinvar_v4_full/finding2_tsg_v4_full.csv</code> &amp;
+<code>qa_diagB_wilcoxon.csv</code> &amp; <code>qa_diagC_shuffle.csv</code> &amp;
+<code>qa_diagD_bonferroni.csv</code></p>
+"""
+
     # Section 9: limitations
     s9 = """
-<h2 id="limits">9. Limitations &amp; open questions</h2>
+<h2 id="limits">11. Limitations &amp; open questions</h2>
 
 <ul>
   <li><strong>Bonferroni at large test family.</strong> The fair sweep tests
@@ -766,7 +895,7 @@ non-degenerate and remains a valid density baseline. Headline numbers stand.</di
 
     # Section 10: file index
     s10 = f"""
-<h2 id="files">10. File index</h2>
+<h2 id="files">12. File index</h2>
 
 <h3>v4 model checkpoints &amp; CV results</h3>
 <ul class="filelist">
@@ -847,7 +976,7 @@ non-degenerate and remains a valid density baseline. Headline numbers stand.</di
         + f'<h1 class="title">V4 Multi-Enzyme APOBEC Report — '
         + 'RNA-Editing Predictor → DNA Somatic Mutation Transfer</h1>'
         + '<p style="color:#666;">Generated: 2026-04-28 — see file index for sources.</p>'
-        + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s9 + s10
+        + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s8b + s8c + s9 + s10
         + '</main>'
     )
 
