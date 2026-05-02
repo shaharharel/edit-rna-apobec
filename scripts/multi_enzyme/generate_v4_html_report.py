@@ -695,9 +695,85 @@ one mutation filter × baseline combination; markers are the 21 panel constructi
 per head.</div></div>
 """
 
+    # Section 5: within-context attribution (where does the model add value?)
+    s5b = """
+<h2 id="within_ctx">5. Where does the model add value? Within-TCW vs within-non-TCW lift</h2>
+
+<div class="info">
+<p><strong>The question.</strong> The headline panel and per-cancer ORs (4-7×) mix
+two effects: (a) the model correctly picks TCW positions (the canonical APOBEC
+motif), and (b) it ranks within each context. Decomposing into context-stratified
+random baselines isolates how much the model adds <em>beyond simple trinucleotide
+motif identification</em>.</p>
+
+<p><strong>How.</strong> Two parallel tests:
+<ul>
+  <li><strong>Within-TCW lift</strong> = (model's top-X% selection from the TCW pool only)
+    recall ÷ (random selection of same size from TCW pool) recall.</li>
+  <li><strong>Within-non-TCW lift</strong> = same construction restricted to the
+    non-TCW pool only.</li>
+</ul>
+A lift &gt; 1 means the model is adding ranking information beyond
+trinucleotide identity, within that pool.</p>
+</div>
+
+<h3>5a. Universe and mutation breakdown</h3>
+<table class="tbl">
+<thead><tr><th>Pool</th><th>Panel positions</th><th>Pan-cancer C&gt;T mutations (in panel, 10 cancers)</th></tr></thead>
+<tbody>
+<tr><td><strong>TCW context</strong> (TCA, TCT)</td><td>1.10 M (13.0 %)</td><td>71,575 (16.3 %)</td></tr>
+<tr><td><strong>non-TCW context</strong> (CpG, CCN, GCN, ACN, etc.)</td><td>7.35 M (87.0 %)</td><td>367,178 (83.7 %)</td></tr>
+<tr><td>Total CDS-C panel</td><td>8.45 M</td><td>438,753</td></tr>
+</tbody></table>
+
+<p><strong>Note:</strong> the majority of cancer C&gt;T mutations are <em>not</em> at TCW
+context — most are CpG-context (SBS1, 5-methylcytosine deamination) or other
+non-APOBEC contexts. Only 16 % of pan-cancer C&gt;T are canonical APOBEC TCW
+mutations; the remaining 84 % are non-TCW.</p>
+
+<h3>5b. Within-pool lift across heads (top-1 % within each pool, 10-cancer mean)</h3>
+<table class="tbl">
+<thead><tr><th>Head</th><th>Within-TCW lift (top-1 % of TCW pool)</th><th><strong>Within-non-TCW lift (top-1 % of non-TCW pool)</strong></th><th>Ratio (non-TCW / TCW)</th></tr></thead>
+<tbody>
+<tr><td>score_binary</td><td>1.04</td><td><strong style="color:#1b5e20;">4.11</strong></td><td>4.0×</td></tr>
+<tr><td>score_A3A</td><td>1.04</td><td><strong style="color:#1b5e20;">5.28</strong></td><td>5.1×</td></tr>
+<tr><td>score_A3B</td><td>0.99</td><td>1.22</td><td>1.2×</td></tr>
+<tr><td>score_A3G</td><td>—</td><td>1.80</td><td>—</td></tr>
+<tr><td>score_A3A_A3G</td><td>1.18</td><td><strong style="color:#1b5e20;">3.92</strong></td><td>3.3×</td></tr>
+<tr><td>score_apobec1_v4_cds</td><td>1.04</td><td>1.05</td><td>1.0×</td></tr>
+</tbody></table>
+
+<div class="info">
+<strong>Insights — the model's actual strength is not where it looks at first.</strong>
+<ul>
+  <li><strong>Within TCW: weak (1.04-1.18 × random).</strong> Among TCW positions,
+    the model ranks barely better than random selection. TCW positions are roughly
+    homogeneous from APOBEC's perspective — they're all editable, and the model
+    has limited room to differentiate.</li>
+  <li><strong>Within non-TCW: strong (3-5 × random for A3A and binary heads).</strong>
+    Among the 7.35 M non-TCW positions, the model identifies the rare subset that
+    DO accumulate cancer mutations with 4-5× lift over random selection. This is
+    the model's most impressive learned feature — finding exceptional non-TCW
+    hotspots that motif-density approaches completely miss.</li>
+  <li><strong>The "OR=5+" per-cancer findings are mostly TCW recognition.</strong>
+    For TCW-restricted filters, the per-cancer OR is dominated by the model
+    correctly preferring TCW context (a correct but motif-derivable behaviour).
+    The ~10-18 % within-TCW additional ranking signal is small.</li>
+  <li><strong>The "Lift vs TCW-density panel = 3.56× on all-C&gt;T" claim
+    (Section 4)</strong> is the per-cancer translation of this within-non-TCW
+    finding: model's panel includes both TCW positions (correct context) and
+    informative non-TCW positions (that motif-density cannot reach), so it
+    captures non-TCW mutations the simpler baseline misses.</li>
+</ul>
+</div>
+
+<p class="legend">Source: <code>experiments/multi_enzyme/outputs/pcawg_tcw_panel/v4_outputs/within_tcw_test.csv</code> &amp;
+<code>within_nontcw_test.csv</code> (10 cancers averaged with bootstrap CIs across cancers).</p>
+"""
+
     # Section 6: per-cancer
     s6 = f"""
-<h2 id="percancer">5. Per-cancer enrichment</h2>
+<h2 id="percancer">6. Per-cancer enrichment</h2>
 
 <p class="legend">Cells: <span class="green">OR &gt; 3</span>
 <span class="yellow">1.5–3</span> <span class="red">&lt; 1.5</span>.</p>
@@ -728,7 +804,7 @@ Spearman ρ = 0.845, p = 8.9e-11.</div></div>
 
     # Section 7: POG570
     s7 = f"""
-<h2 id="pog570">6. Independent cohort replication (POG570)</h2>
+<h2 id="pog570">7. Independent cohort replication (POG570)</h2>
 
 <h3>Side-by-side PCAWG vs POG570 effect sizes</h3>
 {pcawg_vs_pog570_replication_table()}
@@ -743,7 +819,7 @@ that the NN and the baselines are evaluated over identical units.</p>
 
     # Section 8: QA
     s8 = """
-<h2 id="qa">7. QA verification</h2>
+<h2 id="qa">8. QA verification</h2>
 
 <p>All four checks pass. See <code>QA_VERIFICATION_RESULTS.md</code> for source.</p>
 
@@ -772,7 +848,7 @@ non-degenerate and remains a valid density baseline. Headline numbers stand.</di
 
     # Section 8b: ClinVar Finding 1 — nonsense enrichment
     s8b = """
-<h2 id="clinvar_nonsense">8. ClinVar — nonsense enrichment of top model predictions</h2>
+<h2 id="clinvar_nonsense">9. ClinVar — nonsense enrichment of top model predictions</h2>
 
 <h3>Methodology</h3>
 <p>Score every C&gt;T variant in ClinVar (1.69 M variants) with v4 heads and v3 GB
@@ -826,7 +902,7 @@ universe rate. v4 A3A_A3G is the only mildly elevated head (2.30 %, 1.58×, chi�
 
     # Section 8c: ClinVar Finding 2 — TSG enrichment
     s8c = """
-<h2 id="clinvar_tsg">9. ClinVar — pathogenic vs benign in tumor suppressor genes</h2>
+<h2 id="clinvar_tsg">10. ClinVar — pathogenic vs benign in tumor suppressor genes</h2>
 
 <h3>Methodology</h3>
 <p>For each tumor suppressor gene (TSG), compare model scores on <strong>pathogenic
@@ -901,7 +977,7 @@ p-value across genes, and a random-shuffle null (shuffle scores randomly across
 
     # Section 9: limitations
     s9 = """
-<h2 id="limits">10. Limitations &amp; open questions</h2>
+<h2 id="limits">11. Limitations &amp; open questions</h2>
 
 <ul>
   <li><strong>Bonferroni at large test family.</strong> The fair sweep tests
@@ -936,7 +1012,7 @@ p-value across genes, and a random-shuffle null (shuffle scores randomly across
         + f'<h1 class="title">V4 Multi-Enzyme APOBEC Report — '
         + 'RNA-Editing Predictor → DNA Somatic Mutation Transfer</h1>'
         + '<p style="color:#666;">Generated: 2026-05-03.</p>'
-        + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s8b + s8c + s9 + s10
+        + s1 + s2 + s3 + s4 + s5 + s5b + s6 + s7 + s8 + s8b + s8c + s9 + s10
         + '</main>'
     )
 
