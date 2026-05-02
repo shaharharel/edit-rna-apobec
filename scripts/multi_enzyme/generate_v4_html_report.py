@@ -185,30 +185,30 @@ def topx_threshold_table() -> str:
         ]
     ].copy()
     out.columns = [
-        "Filter",
-        "top_pct",
-        "Panel positions",
+        "Mutation set",
+        "Panel size (top-X%)",
+        "Panel positions (N)",
         "Recall",
-        "CI lo",
-        "CI hi",
-        "ratio vs TCW",
-        "ratio vs NPOS",
-        "NPOS CI lo",
-        "NPOS CI hi",
-        "n cancers > NPOS",
-        "n Bonf",
+        "Recall CI lo",
+        "Recall CI hi",
+        "Lift vs TCW-motif panel",
+        "Lift vs random panel",
+        "Lift CI lo",
+        "Lift CI hi",
+        "Cancers > random (of 10)",
+        "Cells passing Bonferroni",
     ]
     fmt = {
-        "top_pct": ".2f",
+        "Panel size (top-X%)": ".2f",
         "Recall": ".4f",
-        "CI lo": ".4f",
-        "CI hi": ".4f",
-        "ratio vs TCW": ".3f",
-        "ratio vs NPOS": ".3f",
-        "NPOS CI lo": ".3f",
-        "NPOS CI hi": ".3f",
+        "Recall CI lo": ".4f",
+        "Recall CI hi": ".4f",
+        "Lift vs TCW-motif panel": ".3f",
+        "Lift vs random panel": ".3f",
+        "Lift CI lo": ".3f",
+        "Lift CI hi": ".3f",
     }
-    return df_to_html(out, color_or_cols=["ratio vs NPOS"], fmt=fmt)
+    return df_to_html(out, color_or_cols=["Lift vs random panel"], fmt=fmt)
 
 
 def per_head_winning_table() -> str:
@@ -239,25 +239,25 @@ def per_head_winning_table() -> str:
         ]
     ].copy()
     out.columns = [
-        "Head",
-        "top_pct",
+        "Model head",
+        "Panel size (top-X%)",
         "Recall",
-        "ratio vs TCW",
-        "ratio vs NPOS",
-        "NPOS CI lo",
-        "NPOS CI hi",
-        "n cancers > NPOS",
-        "n Bonf",
+        "Lift vs TCW-motif panel",
+        "Lift vs random panel",
+        "Lift CI lo",
+        "Lift CI hi",
+        "Cancers > random (of 10)",
+        "Cells passing Bonferroni",
     ]
     fmt = {
-        "top_pct": ".2f",
+        "Panel size (top-X%)": ".2f",
         "Recall": ".4f",
-        "ratio vs TCW": ".3f",
-        "ratio vs NPOS": ".3f",
-        "NPOS CI lo": ".3f",
-        "NPOS CI hi": ".3f",
+        "Lift vs TCW-motif panel": ".3f",
+        "Lift vs random panel": ".3f",
+        "Lift CI lo": ".3f",
+        "Lift CI hi": ".3f",
     }
-    return df_to_html(out, color_or_cols=["ratio vs NPOS"], fmt=fmt)
+    return df_to_html(out, color_or_cols=["Lift vs random panel"], fmt=fmt)
 
 
 def per_cancer_pivot(csv: Path, panel_pct: float, filt: str, label: str) -> str:
@@ -605,25 +605,94 @@ corrected over the test family (q &lt; 3.97e-5 for the 1,260-cell v4 sweep).
 
     # Section 5: headline
     s5 = f"""
-<h2 id="headline">4. Headline results</h2>
+<h2 id="headline">4. Headline results — the panel claim</h2>
 
-<h3>5a. Position-level top-X % recall (binary head, v4_cds)</h3>
-<p class="legend">Cells: <span class="green">ratio &gt; 3</span>
-<span class="yellow">1.5–3</span> <span class="red">&lt; 1.5</span>.</p>
+<div class="info">
+<p><strong>The question.</strong> If we build a small DNA-test panel by picking only
+the highest-scoring CDS positions (e.g. the top 1 %, 5 %, or 10 % of all 8.45 M
+positions), what fraction of cancer somatic C&gt;T mutations does this panel capture?
+And does it capture more than two cheap baselines: a panel of equal size selected
+at random, or a panel selected by trinucleotide motif density alone?</p>
+
+<p><strong>How to read the columns.</strong></p>
+<ul>
+  <li><strong>Panel size (top-X%)</strong> — the fraction of all 8.45 M CDS positions
+    selected by score. top-1 % = 84 K positions = ~0.084 Mb of DNA.</li>
+  <li><strong>Recall</strong> — fraction of in-CDS cancer C&gt;T mutations that fall on
+    panel positions. Higher = panel captures more cancer mutations.</li>
+  <li><strong>Lift vs random panel</strong> — Recall ÷ Recall(random panel of same size).
+    1.0 = no better than random. The headline metric for &quot;does the model add
+    information beyond gene-body density?&quot;</li>
+  <li><strong>Lift vs TCW-motif panel</strong> — Recall ÷ Recall(panel built by ranking
+    on TCW motif count). Tests whether the model beats the simplest motif-density
+    heuristic. Note: on the <code>TCW_nonCpG</code> mutation filter, this baseline is
+    structurally hard to beat by construction (TCW filter selects exactly TCW
+    positions); the meaningful test is on the broader <code>all C&gt;T</code> filter.</li>
+  <li><strong>Cancers &gt; random</strong> — among 10 cancer types, how many individually
+    show recall above the random baseline.</li>
+  <li><strong>Cells passing Bonferroni</strong> — how many of (head × cut × filter ×
+    cancer) cells survive the multiple-testing correction at the family-wide α.</li>
+</ul>
+
+<p class="legend">Lift colouring: <span class="green">≥ 3</span> <span class="yellow">1.5–3</span> <span class="red">&lt; 1.5</span>.</p>
+</div>
+
+<h3>4a. Panel scaling — how recall grows with panel size (binary head)</h3>
+<p>Same NN binary-head ranking, three panel sizes, two mutation strata. The trade-off
+is panel coverage (cost) vs recall (sensitivity).</p>
 {topx_threshold_table()}
 
-<h3>5b. Per-head winning constructions (top-X % position-level, TCW_nonCpG)</h3>
+<div class="info">
+<strong>Insights</strong>
+<ul>
+  <li><strong>Recall scales with panel size, but lift drops gradually.</strong> top-1 %
+  captures only 4.6 % of TCW-non-CpG mutations but with very high lift (4.6× over
+  random); top-10 % captures 28.4 % at lift 3.2×. Panel users trade panel cost for
+  absolute capture.</li>
+  <li><strong>The model beats random selection at every panel size and every filter.</strong>
+  Lift CI lower bound is &gt; 3 in every TCW-non-CpG row and &gt; 1.7 in every all-C&gt;T row.
+  This is the operationally meaningful claim: a small NN-built panel captures more
+  cancer mutations than a random panel of the same size.</li>
+  <li><strong>The model beats motif density on the broader filter.</strong> On all C&gt;T
+  mutations (which include CpG-context and other non-APOBEC C&gt;T), the NN panel
+  captures 3.5× more mutations than a TCW-motif-density panel of the same size at
+  top-1 %, and 2.2× at top-10 %.</li>
+  <li><strong>On the TCW-restricted filter, the model loses to the TCW-motif panel by
+  construction.</strong> A TCW-motif panel by definition picks the positions where
+  TCW mutations occur; on the TCW-non-CpG filter it sets a hard ceiling. The
+  meaningful comparison there is vs random selection (lift &gt; 4×), not vs motif.</li>
+</ul>
+</div>
+
+<h3>4b. Per-head — which prediction head builds the best panel?</h3>
+<p>For each of the 6 model heads, the best panel construction at top-1 % TCW-non-CpG.</p>
 {per_head_winning_table()}
 
-<p>The A3A head reaches the highest absolute ratio vs NPOS at top-1 % TCW_nonCpG
-(4.31×, recall 4.33 %), narrowly beating the binary head (4.58× at recall 4.59 %).
-The retrained <code>apobec1_v4_cds</code> head reaches 4.22× — competitive with the
-APOBEC3 heads and confirming that the new APOBEC1 training data also localises
-DNA mutations.</p>
+<div class="info">
+<strong>Insights</strong>
+<ul>
+  <li><strong>All heads beat the random baseline.</strong> Every head has lift &gt; 1.5
+  with CI lower bound &gt; 1; the multi-head architecture is internally consistent.</li>
+  <li><strong>Binary and A3A heads are the strongest panel rankers.</strong>
+  The binary head's top-1 % gives 4.59 % recall (lift 4.58×); the A3A head reaches
+  4.33 % recall (lift 4.31×). The retrained <code>apobec1_v4_cds</code> head
+  reaches lift 4.22× — competitive with the APOBEC3 heads, confirming that the
+  separately-trained APOBEC1 head also localises DNA mutations.</li>
+  <li><strong>A3A becomes dominant at larger panels.</strong> See Section 4a — at
+  top-5 %, A3A's recall (21.6 %) overtakes binary's (17.8 %); at top-10 % the gap
+  widens to 37.8 % vs 28.4 %. For panels that prioritise sensitivity over the
+  smallest possible footprint, A3A is the choice.</li>
+</ul>
+</div>
 
+<h3>4c. Construction sweep figure</h3>
+<p>Fair-sweep across 21 panel constructions (5 aggregation rules × 4 window sizes
++ position-level) for each model head. Shows that position-level (no window
+aggregation) is consistently the strongest panel construction.</p>
 <div class="figure">{img_b64(V4_OUT / "sweep_v4_cds_fair.png")}
-<div class="caption">Aggregator × window-size fair sweep, v4_cds. Each panel is one
-filter × baseline; markers are the 21 constructions per head.</div></div>
+<div class="caption">Aggregator × window-size fair sweep, v4_cds. Each subplot is
+one mutation filter × baseline combination; markers are the 21 panel constructions
+per head.</div></div>
 """
 
     # Section 6: per-cancer
