@@ -447,6 +447,27 @@ diagnostic on both sets shows <strong>anti_TCW_polarity_present = False</strong>
 The v4_cds top-1 % panel selection is 54.4 % TCW (4.19× enriched relative to
 the panel) and 2.72× CpG-enriched — the correct biology recovered.</p>
 
+<p><strong>Experimental setting.</strong>
+<em>Training data:</em> 7,358 multi-enzyme APOBEC RNA-editing positive sites (Levanon, Asaoka 2019,
+Sharma 2015, Baysal 2016, Alqassim 2021, etc.) plus 7,343 trinucleotide-matched negatives
+sampled from non-edited CDS cytidines.
+<em>Model:</em> Phase3 multi-task neural network — 1320-d input
+(RNA-FM 640-d original + 640-d edit-delta + 40-d hand-crafted features) → 128-d shared
+encoder → six prediction heads (binary &quot;is APOBEC-edited&quot; + four enzyme-specific
+adapters: A3A, A3B, A3G, A3A_A3G + a separate APOBEC1 head trained on top of the frozen
+encoder).
+<em>Scoring set:</em> all 8.45 M cytidines in the human CDS (hg19), scored with each head.
+<em>Cancer-mutation evaluation:</em> 521 K pan-cancer C&gt;T somatic mutations across 10
+TCGA + PCAWG cancer types (BLCA, BRCA, CESC, COADREAD, ESCA, HNSC, LIHC, LUSC, SKCM, STAD),
+plus an independent 2.6 M-mutation POG570 metastatic cohort (no patient overlap with TCGA/PCAWG).
+<em>Mutation strata:</em> TCW-non-CpG (canonical APOBEC) and all C&gt;T (broader).
+<em>Baselines:</em> TCW-motif density and a random-selection baseline (NPOS), both computed
+over the same CDS-C panel positions the NN sees.
+<em>Statistical framework:</em> bootstrap CIs across 10 cancers, real-shuffle permutation null,
+Bonferroni correction at the test-family level. Independent QA suite of seven bias / leakage
+checks (anti-TCW polarity, shuffle null, tie-pool, A3A coordinate memorisation, within-TCW
+ranking, pentanucleotide residual, APOBEC1 leak-out) — all pass with one minor warning.</p>
+
 <p><strong>Headline 1 — panel performance scales with size (v4_cds, position-level).</strong>
 The A3A head is the single best per-position ranker; binary is competitive at top-1 %
 but A3A pulls ahead at 5–10 %. Recall figures are over 521 K PCAWG/TCGA pan-cancer
