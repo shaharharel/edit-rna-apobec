@@ -964,15 +964,48 @@ p-value across genes, and a random-shuffle null (shuffle scores randomly across
   V3 GB has more graded scores than the saturating v4 sigmoids; this benefits
   binary sign tests. The biological direction is the same; the absolute win
   rate differs because of score-distribution shape, not signal.</li>
-  <li><strong>Biological interpretation.</strong> Pathogenic variants in TSGs
-  consistently sit at higher-editability positions than benign variants in the
-  same genes. Consistent with TSG pathogenic variants concentrating at
-  "stress-vulnerable" cytidines that APOBEC also targets.</li>
 </ul>
 
-<p class="legend">Source: <code>experiments/apobec3a/outputs/clinvar_v4_full/finding2_tsg_v4_full.csv</code> &amp;
-<code>qa_diagB_wilcoxon.csv</code> &amp; <code>qa_diagC_shuffle.csv</code> &amp;
-<code>qa_diagD_bonferroni.csv</code></p>
+<h3>Specificity control — is this a TSG-only effect, or generic?</h3>
+<p>To test whether the path-vs-ben sign-test enrichment is uniquely a
+tumor-suppressor phenomenon or a general &quot;model picks pathogenic-distinctive
+positions in any gene&quot; pattern, we ran the same sign test on two control
+gene sets:</p>
+
+<table class="tbl">
+<thead><tr><th>Gene set</th><th>Biology</th><th>n testable</th><th>Wins / N</th><th>Win rate</th><th>Sign p</th></tr></thead>
+<tbody>
+<tr><td><strong>TSGs</strong> (OncoKB CGC)</td><td>loss-of-function across many positions</td><td>128</td><td>110</td><td><strong>86 %</strong></td><td>1.3e-17</td></tr>
+<tr><td>Oncogenes (OncoKB CGC)</td><td>gain-of-function at narrow hotspots</td><td>97</td><td>58</td><td>60 %</td><td>0.034</td></tr>
+<tr><td>Random non-cancer genes</td><td>generic ClinVar coverage</td><td>200</td><td>141</td><td>71 %</td><td>3.2e-09</td></tr>
+</tbody></table>
+
+<div class="caveat">
+<strong>Honest interpretation — partial TSG specificity, not pure.</strong>
+<ul>
+  <li>The path-vs-ben pattern is <strong>partly generic</strong>: random non-cancer
+    genes also show 71 % path&gt;ben (well above 50 % chance), so some of the
+    effect is &quot;the model upweights pathogenic-distinctive positions in any
+    gene&quot; — likely tracking conserved residues, codon distinctiveness, and CpG
+    context effects that happen everywhere.</li>
+  <li>However the TSG win rate (86 %) is <strong>15 percentage points above the
+    random-gene baseline</strong> (Z ≈ 2.8 on a two-proportion test) — a real
+    TSG-specific enrichment over the generic effect.</li>
+  <li>Oncogenes (60 %) sit far below TSGs, which is biologically sensible:
+    oncogene pathogenic variants are gain-of-function at narrow hotspots
+    (KRAS G12, BRAF V600); whole-gene editability doesn't capture them.</li>
+  <li>Defensible claim: &quot;TSGs show the largest pathogenic-vs-benign
+    editability separation among gene classes (86 % vs 71 % in random
+    non-cancer genes), consistent with TSG loss-of-function variants
+    concentrating at distinctive positions on top of a generic
+    pathogenic-variant baseline.&quot; <em>Not</em>: &quot;TSGs are uniquely
+    enriched for editability at pathogenic positions.&quot;</li>
+</ul>
+</div>
+
+<p class="legend">Sources: <code>experiments/apobec3a/outputs/clinvar_v4_full/finding2_tsg_v4_full.csv</code>,
+<code>qa_diagB_wilcoxon.csv</code>, <code>qa_diagC_shuffle.csv</code>,
+<code>qa_diagD_bonferroni.csv</code>, <code>tsg_specificity_control.csv</code>.</p>
 """
 
     # Section 9: limitations
